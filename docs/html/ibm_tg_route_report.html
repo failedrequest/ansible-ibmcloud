@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ibm_tg_route_report - IBM Cloud Ansible Collection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background-color: #ecf0f1;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: #2980b9;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #bdc3c7;
+            font-size: 1.8em;
+        }
+        
+        h3 {
+            color: #16a085;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        
+        h4 {
+            color: #27ae60;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        p {
+            margin-bottom: 15px;
+        }
+        
+        ul, ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e74c3c;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        pre code {
+            background-color: transparent;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        
+        .info-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        .success-box {
+            background-color: #d4edda;
+            border-left: 4px solid #27ae60;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        .danger-box {
+            background-color: #f8d7da;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: #ffffff;
+        }
+        
+        th {
+            background-color: #3498db;
+            color: #ffffff;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 0 5px;
+        }
+        
+        .badge-vpc {
+            background-color: #3498db;
+            color: #ffffff;
+        }
+        
+        .badge-tg {
+            background-color: #9b59b6;
+            color: #ffffff;
+        }
+        
+        .badge-platform {
+            background-color: #27ae60;
+            color: #ffffff;
+        }
+        
+        .section-divider {
+            height: 2px;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            margin: 40px 0;
+        }
+        
+        .nav-menu {
+            background-color: #34495e;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        
+        .nav-menu a {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 8px 15px;
+            display: inline-block;
+            margin: 5px;
+            border-radius: 3px;
+            transition: background-color 0.3s;
+        }
+        
+        .nav-menu a:hover {
+            background-color: #2c3e50;
+        }
+        
+        @media print {
+            body {
+                background-color: #ffffff;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 20px;
+            }
+            
+            .nav-menu {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            h2 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+<div class="nav-menu">
+    <a href="index.html">Home</a>
+    <a href="vpc-modules.html">VPC Modules</a>
+    <a href="transit-gateway-modules.html">Transit Gateway</a>
+    <a href="platform-modules.html">Platform Services</a>
+</div>
+
+<h1><span class="badge badge-tg">TG</span> ibm_tg_route_report</h1>
+
+<div class="info-box">
+    <strong>Module:</strong> ibm_tg_route_report<br>
+    <strong>Category:</strong> Transit Gateway<br>
+    <strong>Version:</strong> 1.0.0
+</div>
+
+<h2>Description</h2>
+<p>
+    Manage IBM Cloud Ibm Tg Route Report resources. This module supports creating, updating, and deleting resources
+    with full idempotency support.
+</p>
+
+<h2>Requirements</h2>
+<ul>
+    <li>Python 3.10+</li>
+    <li>Ansible Core 2.14+</li>
+    <li>IBM Cloud SDK Core 3.20.0+</li>
+    <li>IBM Cloud Python SDK (vpc or platform-services)</li>
+</ul>
+
+<h2>Parameters</h2>
+
+<table>
+    <tr>
+        <th>Parameter</th>
+        <th>Type</th>
+        <th>Required</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><code>name</code></td>
+        <td>string</td>
+        <td>Yes</td>
+        <td>Name of the resource</td>
+    </tr>
+    <tr>
+        <td><code>id</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>Resource ID (for updates/deletes)</td>
+    </tr>
+    <tr>
+        <td><code>state</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>Desired state: present, absent (default: present)</td>
+    </tr>
+    <tr>
+        <td><code>ibmcloud_api_key</code></td>
+        <td>string</td>
+        <td>Yes</td>
+        <td>IBM Cloud API key</td>
+    </tr>
+    <tr>
+        <td><code>region</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>IBM Cloud region (default: us-south)</td>
+    </tr>
+</table>
+
+<h2>Examples</h2>
+
+<h3>Create Resource</h3>
+<pre><code>- name: Create Ibm Tg Route Report
+  ibm_tg_route_report:
+    name: my-resource
+    state: present
+  register: result</code></pre>
+
+<h3>Update Resource</h3>
+<pre><code>- name: Update Ibm Tg Route Report
+  ibm_tg_route_report:
+    id: "{{ result.resource.id }}"
+    name: updated-name
+    state: present</code></pre>
+
+<h3>Delete Resource</h3>
+<pre><code>- name: Delete Ibm Tg Route Report
+  ibm_tg_route_report:
+    id: "{{ result.resource.id }}"
+    state: absent</code></pre>
+
+<h3>Check Mode (Dry Run)</h3>
+<pre><code>- name: Test changes without applying
+  ibm_tg_route_report:
+    name: my-resource
+    state: present
+  check_mode: yes</code></pre>
+
+<h2>Return Values</h2>
+
+<table>
+    <tr>
+        <th>Key</th>
+        <th>Type</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><code>resource</code></td>
+        <td>dict</td>
+        <td>Resource information including ID, name, and all attributes</td>
+    </tr>
+    <tr>
+        <td><code>changed</code></td>
+        <td>bool</td>
+        <td>Whether the resource was changed</td>
+    </tr>
+    <tr>
+        <td><code>msg</code></td>
+        <td>string</td>
+        <td>Status message describing the operation result</td>
+    </tr>
+</table>
+
+<h2>Notes</h2>
+
+<div class="info-box">
+    <ul>
+        <li>This module is idempotent - safe to run multiple times</li>
+        <li>Supports check mode for dry-run testing</li>
+        <li>Uses native IBM Cloud Python SDK</li>
+        <li>No Terraform dependencies required</li>
+    </ul>
+</div>
+
+<h2>See Also</h2>
+<ul>
+    <li><a href="index.html">Collection Documentation</a></li>
+    <li><a href="https://cloud.ibm.com/docs">IBM Cloud Documentation</a></li>
+    <li><a href="https://cloud.ibm.com/apidocs">IBM Cloud API Reference</a></li>
+</ul>
+
+    </div>
+</body>
+</html>

@@ -1,0 +1,148 @@
+---
+# Example playbook: Create VPC with custom address prefix and multiple subnets
+# This demonstrates creating a VPC with a custom address prefix and multiple subnets in a single zone
+
+- name: Create IBM Cloud VPC with Custom Address Prefix
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # Resource naming
+    vpc_name: custom-prefix-vpc
+    address_prefix_name: zone1-custom-prefix
+    
+    # Custom address prefix configuration
+    custom_prefix_cidr: 198.18.0.0/16
+    
+    # Subnet configurations (all /24 subnets from the custom prefix)
+    subnets:
+      - name: zone1-www
+        cidr: 198.18.0.0/24
+        purpose: Web tier
+      - name: zone1-app
+        cidr: 198.18.1.0/24
+        purpose: Application tier
+      - name: zone1-db
+        cidr: 198.18.2.0/24
+        purpose: Database tier
+    
+    # Tags
+    resource_tags:
+      - env:custom-network
+      - managed-by:ansible
+      - project:ibm-cloud-native
+
+  tasks:
+    - name: Create VPC with manual address prefix management
+      ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+        address_prefix_management: manual
+        classic_access: false
+        tags: "{{ resource_tags }}"
+        state: present
+      register: vpc_result
+
+    - name: Display VPC information
+      debug:
+        msg: |
+          VPC Created:
+          - ID: {{ vpc_result.resource.id }}
+          - Name: {{ vpc_result.resource.name }}
+          - Status: {{ vpc_result.resource.status }}
+          - Address Prefix Management: manual
+          - CRN: {{ vpc_result.resource.crn }}
+
+    - name: Create custom address prefix in zone-1
+      ibm_is_address_prefix:
+        name: "{{ address_prefix_name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        zone: "{{ ibm_zone }}"
+        cidr: "{{ custom_prefix_cidr }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: prefix_result
+
+    - name: Display address prefix information
+      debug:
+        msg: |
+          Address Prefix Created:
+          - ID: {{ prefix_result.resource.id }}
+          - Name: {{ prefix_result.resource.name }}
+          - CIDR: {{ prefix_result.resource.cidr }}
+          - Zone: {{ prefix_result.resource.zone.name }}
+          - Is Default: {{ prefix_result.resource.is_default }}
+
+    - name: Create subnets from custom prefix
+      ibm_is_subnet:
+        name: "{{ item.name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        zone: "{{ ibm_zone }}"
+        ipv4_cidr_block: "{{ item.cidr }}"
+        region: "{{ ibm_region }}"
+        state: present
+      loop: "{{ subnets }}"
+      register: subnet_results
+
+    - name: Display subnet information
+      debug:
+        msg: |
+          Subnet Created:
+          - Name: {{ item.resource.name }}
+          - ID: {{ item.resource.id }}
+          - CIDR: {{ item.resource.ipv4_cidr_block }}
+          - Zone: {{ item.resource.zone.name }}
+          - Available IPs: {{ item.resource.available_ipv4_address_count }}
+          - Total IPs: {{ item.resource.total_ipv4_address_count }}
+          - Purpose: {{ subnets[ansible_loop.index0].purpose }}
+      loop: "{{ subnet_results.results }}"
+      loop_control:
+        extended: yes
+
+    - name: Summary
+      debug:
+        msg: |
+          ========================================
+          IBM Cloud VPC with Custom Prefix Created Successfully!
+          ========================================
+          
+          VPC:
+            - Name: {{ vpc_result.resource.name }}
+            - ID: {{ vpc_result.resource.id }}
+            - Region: {{ ibm_region }}
+          
+          Custom Address Prefix:
+            - Name: {{ prefix_result.resource.name }}
+            - CIDR: {{ prefix_result.resource.cidr }}
+            - Zone: {{ ibm_zone }}
+          
+          Subnets Created:
+          {% for subnet in subnet_results.results %}
+            {{ loop.index }}. {{ subnet.resource.name }}
+               - CIDR: {{ subnet.resource.ipv4_cidr_block }}
+               - Available IPs: {{ subnet.resource.available_ipv4_address_count }}
+               - Purpose: {{ subnets[loop.index0].purpose }}
+          {% endfor %}
+          
+          Network Architecture:
+            - Web Tier (zone1-www):    198.18.0.0/24  (254 usable IPs)
+            - App Tier (zone1-app):    198.18.1.0/24  (254 usable IPs)
+            - Database Tier (zone1-db): 198.18.2.0/24  (254 usable IPs)
+          
+          Next Steps:
+            1. Create security groups for each tier
+            2. Deploy instances in appropriate subnets
+            3. Configure network ACLs if needed
+            4. Set up routing between tiers
+          
+          Note: This VPC uses a custom address prefix (198.18.0.0/16) which is
+          from the TEST-NET-2 range (RFC 5737). Ensure this doesn't conflict
+          with your existing network infrastructure.
+          
+          ========================================

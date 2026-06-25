@@ -1,0 +1,89 @@
+---
+# Cleanup playbook: Remove VPC with custom address prefix and subnets
+# This playbook removes resources in reverse order to handle dependencies
+
+- name: Cleanup IBM Cloud VPC with Custom Address Prefix
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration (must match create playbook)
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # Resource naming (must match create playbook)
+    vpc_name: custom-prefix-vpc
+    address_prefix_name: zone1-custom-prefix
+    
+    # Subnet names (must match create playbook)
+    subnet_names:
+      - zone1-www
+      - zone1-app
+      - zone1-db
+
+  tasks:
+    - name: Delete subnets
+      ibm_is_subnet:
+        name: "{{ item }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      loop: "{{ subnet_names }}"
+      ignore_errors: true
+      register: subnet_deletes
+
+    - name: Display subnet deletion status
+      debug:
+        msg: |
+          Subnet Deletion Results:
+          {% for result in subnet_deletes.results %}
+            - {{ subnet_names[loop.index0] }}: {{ 'Success' if result.changed else 'Not found or already deleted' }}
+          {% endfor %}
+
+    - name: Wait for subnet deletions to complete
+      pause:
+        seconds: 10
+
+    - name: Delete custom address prefix
+      ibm_is_address_prefix:
+        name: "{{ address_prefix_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: prefix_delete
+
+    - name: Display address prefix deletion status
+      debug:
+        msg: "Address Prefix deletion: {{ 'Success' if prefix_delete.changed else 'Not found or already deleted' }}"
+
+    - name: Delete VPC
+      ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: vpc_delete
+
+    - name: Display VPC deletion status
+      debug:
+        msg: "VPC deletion: {{ 'Success' if vpc_delete.changed else 'Not found or already deleted' }}"
+
+    - name: Cleanup Summary
+      debug:
+        msg: |
+          ========================================
+          IBM Cloud Custom Prefix VPC Cleanup Complete
+          ========================================
+          
+          Resources Removed:
+            Subnets:
+          {% for result in subnet_deletes.results %}
+              - {{ subnet_names[loop.index0] }}: {{ 'Success' if result.changed else 'Not Found' }}
+          {% endfor %}
+            - Address Prefix: {{ address_prefix_name }} - {{ 'Success' if prefix_delete.changed else 'Not Found' }}
+            - VPC: {{ vpc_name }} - {{ 'Success' if vpc_delete.changed else 'Not Found' }}
+          
+          Note: Resources that don't exist will show as 'Not Found'
+          
+          ========================================

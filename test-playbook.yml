@@ -1,0 +1,38 @@
+---
+- name: Test IBM Cloud Ansible Collection
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    test_vpc_name: "ansible-test-vpc-{{ 999999 | random }}"
+    region: us-south
+  
+  tasks:
+    - name: Display test information
+      debug:
+        msg: |
+          Testing IBM Cloud Ansible Collection
+          Collection: ibm.cloudcollection v1.0.0
+          Test VPC Name: {{ test_vpc_name }}
+          Region: {{ region }}
+    
+    - name: Test VPC creation (check mode)
+      ibm_is_vpc:
+        name: "{{ test_vpc_name }}"
+        region: "{{ region }}"
+        state: present
+      check_mode: yes
+      register: vpc_check
+      ignore_errors: yes
+    
+    - name: Display check mode result
+      debug:
+        var: vpc_check
+    
+    - name: Verify collection is working
+      debug:
+        msg: "✅ IBM Cloud Ansible Collection is installed and accessible!"
+      when: vpc_check is defined

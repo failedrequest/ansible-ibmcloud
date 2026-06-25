@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBM Cloud Ansible Collection - README</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background-color: #ecf0f1;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: #2980b9;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #bdc3c7;
+            font-size: 1.8em;
+        }
+        
+        h3 {
+            color: #16a085;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        
+        h4 {
+            color: #27ae60;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e74c3c;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        pre code {
+            background-color: transparent;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        
+        .info-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        .success-box {
+            background-color: #d4edda;
+            border-left: 4px solid #27ae60;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        .danger-box {
+            background-color: #f8d7da;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: #ffffff;
+        }
+        
+        th {
+            background-color: #3498db;
+            color: #ffffff;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .checklist {
+            list-style-type: none;
+            margin-left: 0;
+        }
+        
+        .checklist li:before {
+            content: "☐ ";
+            color: #95a5a6;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        .architecture-flow {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+            border: 2px solid #bdc3c7;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 0 5px;
+        }
+        
+        .badge-recommended {
+            background-color: #27ae60;
+            color: #ffffff;
+        }
+        
+        .badge-fallback {
+            background-color: #f39c12;
+            color: #ffffff;
+        }
+        
+        .badge-rejected {
+            background-color: #e74c3c;
+            color: #ffffff;
+        }
+        
+        .badge-info {
+            background-color: #3498db;
+            color: #ffffff;
+        }
+        
+        .badge-warning {
+            background-color: #f39c12;
+            color: #ffffff;
+        }
+        
+        .badge-success {
+            background-color: #27ae60;
+            color: #ffffff;
+        }
+        
+        .badge-danger {
+            background-color: #e74c3c;
+            color: #ffffff;
+        }
+        
+        strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        .section-divider {
+            height: 2px;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            margin: 40px 0;
+        }
+        
+        blockquote {
+            border-left: 4px solid #95a5a6;
+            padding-left: 20px;
+            margin: 20px 0;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 20px 0;
+        }
+        
+        hr {
+            border: none;
+            height: 1px;
+            background-color: #bdc3c7;
+            margin: 30px 0;
+        }
+        
+        /* Print styles */
+        @media print {
+            body {
+                background-color: #ffffff;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 20px;
+            }
+            
+            pre {
+                page-break-inside: avoid;
+            }
+            
+            h1, h2, h3, h4 {
+                page-break-after: avoid;
+            }
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            h2 {
+                font-size: 1.5em;
+            }
+            
+            h3 {
+                font-size: 1.2em;
+            }
+            
+            pre {
+                padding: 15px;
+                font-size: 0.85em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+<div class="nav-menu">
+    <a href="index.html">Home</a>
+    <a href="README.html">README</a>
+    <a href="vpc-modules.html">VPC Modules</a>
+    <a href="transit-gateway-modules.html">Transit Gateway</a>
+    <a href="platform-modules.html">Platform Services</a>
+</div>
+<h1>IBM Cloud Native Ansible Collection</h1>
+
+<p>
+A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastructure and platform services. <strong>No Terraform dependencies</strong> - uses native IBM Cloud Python SDKs for direct API integration.
+</p>
+
+<h2>🎯 Features</h2>
+
+<ul>
+<li><span style="color: #27ae60;">✅</span> <strong>67 Production-Ready Modules</strong> covering VPC, Transit Gateway, and Platform services</li>
+<li><span style="color: #27ae60;">✅</span> <strong>Pure Python Implementation</strong> - Direct IBM Cloud SDK integration</li>
+<li><span style="color: #27ae60;">✅</span> <strong>No Terraform Dependency</strong> - Native API calls only</li>
+<li><span style="color: #27ae60;">✅</span> <strong>Idempotent Operations</strong> - Safe to run multiple times</li>
+<li><span style="color: #27ae60;">✅</span> <strong>Check Mode Support</strong> - Dry-run capability for all modules</li>
+<li><span style="color: #27ae60;">✅</span> <strong>Python 3.10+ Compatible</strong> (tested up to 3.14)</li>
+<li><span style="color: #27ae60;">✅</span> <strong>Comprehensive Documentation</strong> - Full examples and guides</li>
+<li><span style="color: #27ae60;">✅</span> <strong>Auto-Generated Modules</strong> - Easy to extend</li>
+</ul>
+
+<h2>📦 Module Inventory</h2>
+
+<h3>VPC Infrastructure Services (42 modules)</h3>
+
+<h4>Core VPC (15 modules)</h4>
+<ul>
+<li><code>ibm_is_vpc</code> - Virtual Private Clouds</li>
+<li><code>ibm_is_subnet</code> - VPC subnets</li>
+<li><code>ibm_is_address_prefix</code> - Address prefixes</li>
+<li><code>ibm_is_routing_table</code> - Routing tables</li>
+<li><code>ibm_is_route</code> - Routes</li>
+<li><code>ibm_is_security_group</code> - Security groups</li>
+<li><code>ibm_is_security_group_rule</code> - Security rules</li>
+<li><code>ibm_is_network_acl</code> - Network ACLs</li>
+<li><code>ibm_is_public_gateway</code> - Public gateways</li>
+<li><code>ibm_is_floating_ip</code> - Floating IPs</li>
+<li><code>ibm_is_endpoint_gateway</code> - VPC endpoints</li>
+<li><code>ibm_is_network_interface</code> - Network interfaces</li>
+<li><code>ibm_is_virtual_network_interface</code> - Virtual network interfaces</li>
+<li><code>ibm_is_flow_log</code> - Flow log collectors</li>
+</ul>
+
+<h4>Compute (8 modules)</h4>
+<ul>
+<li><code>ibm_is_instance</code> - Virtual server instances</li>
+<li><code>ibm_is_instance_template</code> - Instance templates</li>
+<li><code>ibm_is_instance_group</code> - Instance groups</li>
+<li><code>ibm_is_instance_group_manager</code> - Auto-scaling managers</li>
+<li><code>ibm_is_bare_metal_server</code> - Bare metal servers</li>
+<li><code>ibm_is_bare_metal_server_network_interface</code> - Bare metal networking</li>
+<li><code>ibm_is_dedicated_host_group</code> - Dedicated host groups</li>
+<li><code>ibm_is_dedicated_host</code> - Dedicated hosts</li>
+</ul>
+
+<h4>Storage (7 modules)</h4>
+<ul>
+<li><code>ibm_is_volume</code> - Block storage volumes</li>
+<li><code>ibm_is_snapshot</code> - Volume snapshots</li>
+<li><code>ibm_is_snapshot_consistency_group</code> - Snapshot groups</li>
+<li><code>ibm_is_backup_policy</code> - Backup policies</li>
+<li><code>ibm_is_backup_policy_plan</code> - Backup plans</li>
+<li><code>ibm_is_share</code> - File shares</li>
+<li><code>ibm_is_share_mount_target</code> - Share mount targets</li>
+</ul>
+
+<h4>Load Balancing (4 modules)</h4>
+<ul>
+<li><code>ibm_is_load_balancer</code> - Load balancers</li>
+<li><code>ibm_is_lb_listener</code> - LB listeners</li>
+<li><code>ibm_is_lb_pool</code> - LB pools</li>
+<li><code>ibm_is_lb_pool_member</code> - Pool members</li>
+</ul>
+
+<h4>VPN (5 modules)</h4>
+<ul>
+<li><code>ibm_is_vpn_gateway</code> - VPN gateways</li>
+<li><code>ibm_is_vpn_gateway_connection</code> - VPN connections</li>
+<li><code>ibm_is_vpn_server</code> - VPN servers</li>
+<li><code>ibm_is_ike_policy</code> - IKE policies</li>
+<li><code>ibm_is_ipsec_policy</code> - IPSec policies</li>
+</ul>
+
+<h4>Resource Management (3 modules)</h4>
+<ul>
+<li><code>ibm_is_ssh_key</code> - SSH keys</li>
+<li><code>ibm_is_image</code> - Custom images</li>
+<li><code>ibm_is_placement_group</code> - Placement groups</li>
+<li><code>ibm_is_reservation</code> - Capacity reservations</li>
+</ul>
+
+<h3>Transit Gateway (4 modules)</h3>
+<ul>
+<li><code>ibm_tg_gateway</code> - Transit Gateway instances</li>
+<li><code>ibm_tg_connection</code> - Gateway connections (VPC, Direct Link, GRE)</li>
+<li><code>ibm_tg_connection_prefix_filter</code> - Route filtering</li>
+<li><code>ibm_tg_route_report</code> - Route reports</li>
+</ul>
+
+<h3>Platform Services (21 modules)</h3>
+
+<h4>Cloud Object Storage (1 module)</h4>
+<ul>
+<li><code>ibm_cos_bucket</code> - COS buckets</li>
+</ul>
+
+<h4>Identity & Access Management (5 modules)</h4>
+<ul>
+<li><code>ibm_iam_access_group</code> - Access groups</li>
+<li><code>ibm_iam_access_group_rule</code> - Dynamic rules</li>
+<li><code>ibm_iam_service_id</code> - Service IDs</li>
+<li><code>ibm_iam_api_key</code> - API keys</li>
+<li><code>ibm_iam_policy</code> - Access policies</li>
+</ul>
+
+<h4>Resource Management (4 modules)</h4>
+<ul>
+<li><code>ibm_resource_group</code> - Resource groups</li>
+<li><code>ibm_resource_instance</code> - Service instances</li>
+<li><code>ibm_resource_key</code> - Service credentials</li>
+<li><code>ibm_resource_binding</code> - Service bindings</li>
+</ul>
+
+<h4>Key Management (2 modules)</h4>
+<ul>
+<li><code>ibm_kms_key</code> - Encryption keys</li>
+<li><code>ibm_kms_key_ring</code> - Key rings</li>
+</ul>
+
+<h4>Databases (2 modules)</h4>
+<ul>
+<li><code>ibm_database_instance</code> - Database deployments</li>
+<li><code>ibm_database_user</code> - Database users</li>
+</ul>
+
+<h4>Container Registry (2 modules)</h4>
+<ul>
+<li><code>ibm_cr_namespace</code> - Registry namespaces</li>
+<li><code>ibm_cr_retention_policy</code> - Retention policies</li>
+</ul>
+
+<h4>Event Notifications (3 modules)</h4>
+<ul>
+<li><code>ibm_en_destination</code> - Notification destinations</li>
+<li><code>ibm_en_topic</code> - Notification topics</li>
+<li><code>ibm_en_subscription</code> - Topic subscriptions</li>
+</ul>
+
+<h4>Secrets Manager (2 modules)</h4>
+<ul>
+<li><code>ibm_sm_secret_group</code> - Secret groups</li>
+<li><code>ibm_sm_secret</code> - Secrets</li>
+</ul>
+
+<h2>🚀 Quick Start</h2>
+
+<h3>Installation</h3>
+
+<h4>Option 1: Install from Pre-built Collection (Recommended)</h4>
+
+<pre><code><h1>Install Python dependencies</h1>
+<p>
+pip install -r requirements.txt
+</p>
+
+<h1>Install the collection tarball</h1>
+<p>
+ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz
+</p>
+
+<h1>Set your IBM Cloud API key</h1>
+<p>
+export IC_API_KEY="your-api-key-here"
+</p>
+</code></pre>
+
+<h4>Option 2: Build and Install from Source</h4>
+
+<pre><code><h1>Clone the repository</h1>
+<p>
+git clone <repository-url>
+cd ansible-ibmcloud
+</p>
+
+<h1>Install Python dependencies</h1>
+<p>
+pip install -r requirements.txt
+</p>
+
+<h1>Build the collection</h1>
+<p>
+ansible-galaxy collection build
+</p>
+
+<h1>Install the built collection</h1>
+<p>
+ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz
+</p>
+
+<h1>Set your IBM Cloud API key</h1>
+<p>
+export IC_API_KEY="your-api-key-here"
+</p>
+</code></pre>
+
+<h4>Option 3: Development Setup</h4>
+
+<pre><code><h1>Clone the repository</h1>
+<p>
+git clone <repository-url>
+cd ansible-ibmcloud
+</p>
+
+<h1>Run setup script (creates virtual environment)</h1>
+<p>
+chmod +x setup.sh
+./setup.sh
+</p>
+
+<h1>Activate virtual environment</h1>
+<p>
+source build/venv/bin/activate
+</p>
+
+<h1>Set your IBM Cloud API key</h1>
+<p>
+export IC_API_KEY="your-api-key-here"
+</p>
+</code></pre>
+
+<h3>Configuration</h3>
+
+<p>
+Set your IBM Cloud API key:
+</p>
+
+<pre><code>export IC_API_KEY="your-api-key-here"
+</code></pre>
+
+<p>
+Or use in playbooks:
+</p>
+
+<pre><code>vars:
+<p>
+ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+</p>
+</code></pre>
+
+<h3>Basic Usage</h3>
+
+<pre><code>---
+<ul>
+<li>name: Create VPC Infrastructure</li>
+</ul>
+<p>
+hosts: localhost
+tasks:
+</p>
+<ul>
+<li>name: Create VPC</li>
+</ul>
+<p>
+ibm_is_vpc:
+name: production-vpc
+region: us-south
+state: present
+register: vpc
+</p>
+
+<ul>
+<li>name: Create Subnet</li>
+</ul>
+<p>
+ibm_is_subnet:
+name: web-subnet
+vpc: "{{ vpc.resource.id }}"
+zone: us-south-1
+ipv4_cidr_block: 10.240.0.0/24
+state: present
+register: subnet
+</p>
+
+<ul>
+<li>name: Create Instance</li>
+</ul>
+<p>
+ibm_is_instance:
+name: web-server
+vpc: "{{ vpc.resource.id }}"
+zone: us-south-1
+profile: bx2-2x8
+image: ibm-ubuntu-20-04-minimal-amd64-1
+primary_network_interface:
+subnet: "{{ subnet.resource.id }}"
+state: present
+</p>
+</code></pre>
+
+<h2>📚 Documentation</h2>
+
+<ul>
+<li><strong><a href="docs/GETTING_STARTED.md">Getting Started Guide</a></strong> - Installation and basic usage</li>
+<li><strong><a href="docs/MODULE_REFERENCE.md">VPC Module Reference</a></strong> - Complete VPC module documentation</li>
+<li><strong><a href="docs/TRANSIT_GATEWAY.md">Transit Gateway Guide</a></strong> - Transit Gateway networking</li>
+<li><strong><a href="docs/PLATFORM_SERVICES.md">Platform Services Guide</a></strong> - Platform service modules</li>
+<li><strong><a href="docs/API_REFERENCE.md">API Reference</a></strong> - Detailed API documentation</li>
+</ul>
+
+<h2>🏗️ Architecture</h2>
+
+<pre><code>ansible-ibmcloud/
+<p>
+├── plugins/
+│   ├── modules/              # 63 Ansible modules
+│   │   ├── ibm_is_*.py      # VPC Infrastructure (42)
+│   │   ├── ibm_cos_*.py     # Cloud Object Storage (1)
+│   │   ├── ibm_iam_*.py     # IAM (5)
+│   │   ├── ibm_resource_*.py # Resource Management (4)
+│   │   ├── ibm_kms_*.py     # Key Management (2)
+│   │   ├── ibm_database_*.py # Databases (2)
+│   │   ├── ibm_cr_*.py      # Container Registry (2)
+│   │   ├── ibm_en_*.py      # Event Notifications (3)
+│   │   └── ibm_sm_*.py      # Secrets Manager (2)
+│   └── module_utils/
+│       └── ibm_cloud_sdk.py # Core SDK integration
+├── tools/
+│   ├── generate_modules.py          # VPC module generator
+│   ├── generate_extended_modules.py # Extended VPC generator
+│   └── generate_platform_modules.py # Platform service generator
+├── examples/                 # Example playbooks
+├── docs/                    # Documentation
+└── tests/                   # Test suite
+</p>
+</code></pre>
+
+<h2>🔧 Requirements</h2>
+
+<h3>Python Dependencies</h3>
+<ul>
+<li>Python 3.10 or higher</li>
+<li>ibm-vpc >= 0.33.0</li>
+<li>ibm-platform-services >= 0.50.0</li>
+<li>ibm-cloud-sdk-core >= 3.20.0</li>
+<li>ansible-core >= 2.14</li>
+</ul>
+
+<h3>System Requirements</h3>
+<ul>
+<li>Linux, macOS, or Windows with WSL</li>
+<li>IBM Cloud account with API key</li>
+<li>Network access to IBM Cloud APIs</li>
+</ul>
+
+<h2>💡 Examples</h2>
+
+<h3>Complete VPC Infrastructure</h3>
+
+<pre><code>---
+<ul>
+<li>name: Deploy Complete VPC Infrastructure</li>
+</ul>
+<p>
+hosts: localhost
+vars:
+region: us-south
+zone: us-south-1
+</p>
+
+<p>
+tasks:
+</p>
+<ul>
+<li>name: Create VPC</li>
+</ul>
+<p>
+ibm_is_vpc:
+name: production-vpc
+region: "{{ region }}"
+state: present
+register: vpc
+</p>
+
+<ul>
+<li>name: Create Security Group</li>
+</ul>
+<p>
+ibm_is_security_group:
+name: web-sg
+vpc: "{{ vpc.resource.id }}"
+state: present
+register: sg
+</p>
+
+<ul>
+<li>name: Allow HTTPS</li>
+</ul>
+<p>
+ibm_is_security_group_rule:
+security_group: "{{ sg.resource.id }}"
+direction: inbound
+protocol: tcp
+port_min: 443
+port_max: 443
+remote: 0.0.0.0/0
+state: present
+</p>
+
+<ul>
+<li>name: Create Subnet</li>
+</ul>
+<p>
+ibm_is_subnet:
+name: web-subnet
+vpc: "{{ vpc.resource.id }}"
+zone: "{{ zone }}"
+ipv4_cidr_block: 10.240.0.0/24
+state: present
+register: subnet
+</p>
+
+<ul>
+<li>name: Create Load Balancer</li>
+</ul>
+<p>
+ibm_is_load_balancer:
+name: web-lb
+subnets:
+</p>
+<ul>
+<li>"{{ subnet.resource.id }}"</li>
+</ul>
+<p>
+is_public: true
+state: present
+</p>
+</code></pre>
+
+<h3>Platform Services Setup</h3>
+
+<pre><code>---
+<ul>
+<li>name: Setup Platform Services</li>
+</ul>
+<p>
+hosts: localhost
+tasks:
+</p>
+<ul>
+<li>name: Create Resource Group</li>
+</ul>
+<p>
+ibm_resource_group:
+name: production
+account_id: "{{ account_id }}"
+state: present
+register: rg
+</p>
+
+<ul>
+<li>name: Create KMS Instance</li>
+</ul>
+<p>
+ibm_resource_instance:
+name: production-kms
+target: us-south
+resource_group: "{{ rg.resource.id }}"
+resource_plan_id: "{{ kms_plan_id }}"
+state: present
+register: kms
+</p>
+
+<ul>
+<li>name: Create Encryption Key</li>
+</ul>
+<p>
+ibm_kms_key:
+name: data-key
+instance_id: "{{ kms.resource.guid }}"
+extractable: false
+state: present
+</p>
+
+<ul>
+<li>name: Create Database</li>
+</ul>
+<p>
+ibm_database_instance:
+name: production-db
+service_id: databases-for-postgresql
+plan_id: standard
+location: us-south
+version: "14"
+state: present
+</p>
+</code></pre>
+
+<h2>🧪 Testing</h2>
+
+<pre><code><h1>Syntax check</h1>
+<p>
+ansible-playbook playbook.yml --syntax-check
+</p>
+
+<h1>Check mode (dry run)</h1>
+<p>
+ansible-playbook playbook.yml --check
+</p>
+
+<h1>Run with verbose output</h1>
+<p>
+ansible-playbook playbook.yml -vvv
+</p>
+
+<h1>List all tasks</h1>
+<p>
+ansible-playbook playbook.yml --list-tasks
+</p>
+</code></pre>
+
+<h2>🔨 Development</h2>
+
+<h3>Adding New Modules</h3>
+
+<p>
+The collection includes generators for creating new modules:
+</p>
+
+<pre><code><h1>Generate VPC modules</h1>
+<p>
+python tools/generate_modules.py
+</p>
+
+<h1>Generate extended VPC modules</h1>
+<p>
+python tools/generate_extended_modules.py
+</p>
+
+<h1>Generate platform service modules</h1>
+<p>
+python tools/generate_platform_modules.py
+</p>
+</code></pre>
+
+<h3>Module Structure</h3>
+
+<p>
+All modules follow a consistent pattern:
+</p>
+
+<pre><code>from ansible.module_utils.basic import AnsibleModule
+<p>
+from ansible_collections.ibm.cloudcollection.plugins.module_utils.ibm_cloud_sdk import (
+IBMCloudSDKModule,
+get_common_argument_spec
+)
+</p>
+
+<p>
+class MyModule(IBMCloudSDKModule):
+def run(self):
+# Module implementation
+pass
+</p>
+
+<p>
+def main():
+argument_spec = get_common_argument_spec()
+argument_spec.update({
+# Module-specific parameters
+})
+</p>
+
+<p>
+module = AnsibleModule(
+argument_spec=argument_spec,
+supports_check_mode=True
+)
+</p>
+
+<p>
+my_module = MyModule(module)
+my_module.run()
+</p>
+</code></pre>
+
+<h2>🤝 Contributing</h2>
+
+<p>
+Contributions are welcome! Please:
+</p>
+
+<p>
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Update documentation
+5. Submit a pull request
+</p>
+
+<h2>📝 License</h2>
+
+<p>
+GNU General Public License v3.0+
+</p>
+
+<p>
+See <a href="LICENSE">LICENSE</a> for full details.
+</p>
+
+<h2>🆘 Support</h2>
+
+<ul>
+<li><strong>Documentation</strong>: See <a href="docs/">docs/</a> directory</li>
+<li><strong>Issues</strong>: Report bugs via GitHub Issues</li>
+<li><strong>IBM Cloud Docs</strong>: https://cloud.ibm.com/docs</li>
+<li><strong>IBM Cloud API</strong>: https://cloud.ibm.com/apidocs</li>
+</ul>
+
+<h2>🎯 Roadmap</h2>
+
+<ul>
+<li>[ ] Add info modules for read-only operations</li>
+<li>[ ] Implement Kubernetes/OpenShift modules</li>
+<li>[ ] Add Cloud Functions modules</li>
+<li>[ ] Implement Code Engine modules</li>
+<li>[ ] Add Satellite modules</li>
+<li>[ ] Expand test coverage</li>
+<li>[ ] Add CI/CD pipeline examples</li>
+</ul>
+
+<h2>📊 Module Statistics</h2>
+
+<table>
+<tr>
+<th>Category</th>
+<th>Modules</th>
+<th>Status</th>
+</tr>
+<tr>
+<td>VPC Infrastructure</td>
+<td>42</td>
+<td><span style="color: #27ae60;">✅</span> Complete</td>
+</tr>
+<tr>
+<td>Transit Gateway</td>
+<td>4</td>
+<td><span style="color: #27ae60;">✅</span> Complete</td>
+</tr>
+<tr>
+<td>Platform Services</td>
+<td>21</td>
+<td><span style="color: #27ae60;">✅</span> Complete</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>67</strong></td>
+<td><strong><span style="color: #27ae60;">✅</span> Production Ready</strong></td>
+</tr>
+</table>
+
+<h2>🔐 Security</h2>
+
+<ul>
+<li>All modules support IBM Cloud IAM authentication</li>
+<li>API keys should be stored securely (use Ansible Vault)</li>
+<li>Check mode available for safe testing</li>
+<li>No credentials stored in module code</li>
+<li>Supports service IDs and API keys</li>
+</ul>
+
+<h2>⚡ Performance</h2>
+
+<ul>
+<li>Direct SDK calls (no Terraform overhead)</li>
+<li>Efficient API usage with proper pagination</li>
+<li>Idempotent operations minimize API calls</li>
+<li>Parallel execution support via Ansible</li>
+</ul>
+
+<h2>🌍 Supported Regions</h2>
+
+<p>
+All IBM Cloud regions are supported:
+</p>
+<ul>
+<li>us-south, us-east</li>
+<li>eu-gb, eu-de</li>
+<li>jp-tok, jp-osa</li>
+<li>au-syd</li>
+<li>ca-tor</li>
+<li>br-sao</li>
+</ul>
+
+<h2>📈 Version History</h2>
+
+<ul>
+<li><strong>v1.0.0</strong> - Initial release with 67 modules</li>
+<li>42 VPC Infrastructure modules</li>
+<li>4 Transit Gateway modules</li>
+<li>21 Platform service modules</li>
+<li>Pure Python implementation</li>
+<li>Complete documentation</li>
+</ul>
+
+<p>
+---
+</p>
+
+<strong>Built with <span style="color: #e74c3c;">❤️</span> for the IBM Cloud community</strong>
+    </div>
+</body>
+</html>

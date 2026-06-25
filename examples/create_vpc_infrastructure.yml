@@ -1,0 +1,210 @@
+---
+# Example playbook: Create complete VPC infrastructure on IBM Cloud
+# This demonstrates the native Python SDK implementation without Terraform
+
+- name: Create IBM Cloud VPC Infrastructure
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # Resource naming
+    vpc_name: demo-vpc
+    subnet_name: demo-subnet
+    security_group_name: demo-sg
+    instance_name: demo-instance
+    
+    # Instance configuration
+    instance_profile: bx2-2x8
+    # Using Ubuntu 22.04 LTS (widely available and stable)
+    # Image name will be automatically resolved to region-specific ID
+    instance_image: ibm-ubuntu-22-04-5-minimal-amd64-16
+    
+    # Tags
+    resource_tags:
+      - env:demo
+      - managed-by:ansible
+      - project:ibm-cloud-native
+
+  tasks:
+    - name: Create VPC
+      ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+        address_prefix_management: auto
+        classic_access: false
+        tags: "{{ resource_tags }}"
+        state: present
+      register: vpc_result
+
+    - name: Display VPC information
+      debug:
+        msg: |
+          VPC Created:
+          - ID: {{ vpc_result.resource.id }}
+          - Name: {{ vpc_result.resource.name }}
+          - Status: {{ vpc_result.resource.status }}
+          - CRN: {{ vpc_result.resource.crn }}
+
+    - name: Create subnet
+      ibm_is_subnet:
+        name: "{{ subnet_name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        zone: "{{ ibm_zone }}"
+        ipv4_cidr_block: 10.240.0.0/24
+        region: "{{ ibm_region }}"
+        state: present
+      register: subnet_result
+
+    - name: Create security group
+      ibm_is_security_group:
+        name: "{{ security_group_name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: sg_result
+
+    - name: Add SSH rule to security group
+      ibm_is_security_group_rule:
+        security_group: "{{ sg_result.resource.id }}"
+        direction: inbound
+        protocol: tcp
+        port_min: 22
+        port_max: 22
+        remote: 0.0.0.0/0
+        region: "{{ ibm_region }}"
+        state: present
+
+    - name: Add HTTP rule to security group
+      ibm_is_security_group_rule:
+        security_group: "{{ sg_result.resource.id }}"
+        direction: inbound
+        protocol: tcp
+        port_min: 80
+        port_max: 80
+        remote: 0.0.0.0/0
+        region: "{{ ibm_region }}"
+        state: present
+
+    - name: Add HTTPS rule to security group
+      ibm_is_security_group_rule:
+        security_group: "{{ sg_result.resource.id }}"
+        direction: inbound
+        protocol: tcp
+        port_min: 443
+        port_max: 443
+        remote: 0.0.0.0/0
+        region: "{{ ibm_region }}"
+        state: present
+
+    - name: Create SSH key (if not exists)
+      ibm_is_ssh_key:
+        name: demo-ssh-key
+        public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: ssh_key_result
+
+    - name: Get image information by name
+      ibm_is_image_info:
+        name: "{{ instance_image }}"
+        region: "{{ ibm_region }}"
+      register: image_lookup
+
+    - name: Fail if image not found
+      fail:
+        msg: "Image '{{ instance_image }}' not found. Please check the image name or use 'ibmcloud is images' to list available images."
+      when: not image_lookup.found
+
+    - name: Create virtual server instance
+      ibm_is_instance:
+        name: "{{ instance_name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        zone: "{{ ibm_zone }}"
+        profile: "{{ instance_profile }}"
+        image: "{{ image_lookup.resource.id }}"
+        primary_network_interface:
+          subnet: "{{ subnet_result.resource.id }}"
+          security_groups:
+            - "{{ sg_result.resource.id }}"
+        keys:
+          - "{{ ssh_key_result.resource.id }}"
+        user_data: |
+          #!/bin/bash
+          apt-get update
+          apt-get install -y nginx
+          systemctl enable nginx
+          systemctl start nginx
+          echo "<h1>Hello from IBM Cloud - Ansible Native SDK</h1>" > /var/www/html/index.html
+        region: "{{ ibm_region }}"
+        tags: "{{ resource_tags }}"
+        state: present
+      register: instance_result
+
+    - name: Display instance information
+      debug:
+        msg: |
+          Instance Created:
+          - ID: {{ instance_result.resource.id }}
+          - Name: {{ instance_result.resource.name }}
+          - Status: {{ instance_result.resource.status }}
+          - Zone: {{ instance_result.resource.zone.name }}
+          - Profile: {{ instance_result.resource.profile.name }}
+      when: instance_result.resource.id is defined
+
+    - name: Create floating IP for instance
+      ibm_is_floating_ip:
+        name: "{{ instance_name }}-fip"
+        target: "{{ instance_result.resource.primary_network_interface.id }}"
+        zone: "{{ ibm_zone }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: fip_result
+
+    - name: Display floating IP information
+      debug:
+        msg: |
+          Floating IP Created:
+          - ID: {{ fip_result.resource.id }}
+          - Address: {{ fip_result.resource.address }}
+          - Target: {{ fip_result.resource.target.name }}
+
+    - name: Summary
+      debug:
+        msg: |
+          ========================================
+          IBM Cloud Infrastructure Created Successfully!
+          ========================================
+          
+          VPC:
+            - Name: {{ vpc_result.resource.name }}
+            - ID: {{ vpc_result.resource.id }}
+          
+          Subnet:
+            - Name: {{ subnet_result.resource.name | default('N/A') }}
+            - CIDR: {{ subnet_result.resource.ipv4_cidr_block | default('N/A') }}
+          
+          Security Group:
+            - Name: {{ sg_result.resource.name | default('N/A') }}
+            - Rules: SSH (22), HTTP (80), HTTPS (443)
+          
+          Instance:
+            - Name: {{ instance_result.resource.name | default('N/A') }}
+            - Profile: {{ instance_profile }}
+            - Status: {{ instance_result.resource.status | default('N/A') }}
+          
+          Floating IP:
+            - Address: {{ fip_result.resource.address | default('N/A') }}
+            - ID: {{ fip_result.resource.id | default('N/A') }}
+          
+          Next Steps:
+            1. Wait for instance to be in 'running' state
+            2. Access via SSH: ssh root@{{ fip_result.resource.address | default('FLOATING_IP') }}
+            3. Access via HTTP: http://{{ fip_result.resource.address | default('FLOATING_IP') }}
+          
+          ========================================

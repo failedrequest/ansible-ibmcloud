@@ -1,0 +1,162 @@
+---
+# Example playbook: Create VNI and Attach to ROKS Cluster
+# This demonstrates creating a VNI with reserved IP and attaching it to a ROKS cluster
+
+- name: Create VNI and Attach to ROKS Cluster
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # IBM Cloud API Key - can be set as variable or environment variable
+    # Option 1: Set as environment variable: export IC_API_KEY="your-api-key"
+    # Option 2: Uncomment and set directly (not recommended for production)
+    # ibmcloud_api_key: "your-api-key-here"
+    ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+    
+    # ROKS Cluster Name - can be set as variable or environment variable
+    # Option 1: Set as environment variable: export CLUSTER_NAME="your-cluster-name"
+    # Option 2: Uncomment and set directly
+    # cluster_name: "your-cluster-name-here"
+    cluster_name: "{{ lookup('env', 'CLUSTER_NAME') }}"
+    
+    # Resource naming
+    vpc_name: custom-prefix-vpc
+    
+    # VNI configuration for ROKS cluster
+    vni_config:
+      name: vni-roks-cluster
+      subnet_name: zone1-app
+      reserved_ip: 198.18.1.200
+      purpose: ROKS cluster network interface
+    
+    # Tags
+    resource_tags:
+      - env:custom-network
+      - managed-by:ansible
+      - project:ibm-cloud-native
+      - purpose:roks-cluster
+
+  tasks:
+    - name: Validate required variables
+      fail:
+        msg: |
+          Required variables not set!
+          
+          Missing: {{ missing_vars | join(', ') }}
+          
+          Please set environment variables:
+            export IC_API_KEY="your-api-key"
+            export CLUSTER_NAME="your-cluster-name"
+          
+          Or set them in the playbook vars section.
+          
+          To list your clusters, run:
+            ibmcloud ks clusters
+      vars:
+        missing_vars: "{{ [] + (['IC_API_KEY'] if not ibmcloud_api_key else []) + (['CLUSTER_NAME'] if not cluster_name else []) }}"
+      when: missing_vars | length > 0
+
+    - name: Get VPC information
+      ibm_is_vpc_info:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+      register: vpc_lookup
+
+    - name: Fail if VPC not found
+      fail:
+        msg: "VPC '{{ vpc_name }}' not found. Please run create_vpc_custom_prefix.yml first."
+      when: not vpc_lookup.found
+
+    - name: Get subnet information
+      ibm_is_subnet_info:
+        name: "{{ vni_config.subnet_name }}"
+        region: "{{ ibm_region }}"
+      register: subnet_lookup
+
+    - name: Fail if subnet not found
+      fail:
+        msg: "Subnet '{{ vni_config.subnet_name }}' not found. Please run create_vpc_custom_prefix.yml first."
+      when: not subnet_lookup.found
+
+    - name: Create VNI with reserved IP for ROKS cluster
+      ibm_is_virtual_network_interface:
+        name: "{{ vni_config.name }}"
+        subnet: "{{ subnet_lookup.resource.id }}"
+        primary_ip_address: "{{ vni_config.reserved_ip }}"
+        primary_ip_name: "{{ vni_config.name }}-ip"
+        enable_infrastructure_nat: true
+        region: "{{ ibm_region }}"
+        state: present
+      register: vni_result
+
+    - name: Display VNI information
+      debug:
+        msg: |
+          VNI Created:
+          - Name: {{ vni_result.resource.name }}
+          - ID: {{ vni_result.resource.id }}
+          - Primary IP: {{ vni_result.resource.primary_ip.address }}
+          - Reserved IP Name: {{ vni_result.resource.primary_ip.name }}
+          - Subnet: {{ vni_config.subnet_name }}
+          - Purpose: {{ vni_config.purpose }}
+          - Enable Infrastructure NAT: {{ vni_result.resource.enable_infrastructure_nat }}
+      when: vni_result.changed
+
+    - name: Attach VNI to ROKS cluster
+      ibm_ks_cluster_vni:
+        cluster: "{{ cluster_name }}"
+        vni_id: "{{ vni_result.resource.id }}"
+        vni_subnet_id: "{{ subnet_lookup.resource.id }}"
+        ibmcloud_api_key: "{{ ibmcloud_api_key }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: attach_result
+
+    - name: Display attachment result
+      debug:
+        msg: |
+          VNI Attachment Result:
+          - Cluster: {{ attach_result.cluster }}
+          - VNI ID: {{ attach_result.vni_id }}
+          - Status: {{ attach_result.msg }}
+          - Changed: {{ attach_result.changed }}
+
+    - name: Summary
+      debug:
+        msg: |
+          ========================================
+          VNI Created and Attached to ROKS Cluster Successfully!
+          ========================================
+          
+          VPC: {{ vpc_name }}
+          Region: {{ ibm_region }}
+          Cluster: {{ cluster_name }}
+          
+          VNI Details:
+            - Name: {{ vni_result.resource.name }}
+            - ID: {{ vni_result.resource.id }}
+            - Subnet: {{ vni_config.subnet_name }}
+            - Reserved IP: {{ vni_result.resource.primary_ip.address }}
+            - Reserved IP Name: {{ vni_result.resource.primary_ip.name }}
+            - Purpose: {{ vni_config.purpose }}
+            - Infrastructure NAT: {{ vni_result.resource.enable_infrastructure_nat }}
+          
+          Attachment Status:
+            - {{ attach_result.msg }}
+          
+          Next Steps:
+            1. Verify VNI attachment: ibmcloud ks cluster get --cluster {{ cluster_name }}
+            2. Check cluster worker nodes: ibmcloud ks workers --cluster {{ cluster_name }}
+            3. Test connectivity from cluster pods to VNI IP
+            4. Configure any additional security group rules if needed
+          
+          To detach the VNI:
+            ansible-playbook detach_vni_from_roks_cluster.yml
+          
+          ========================================

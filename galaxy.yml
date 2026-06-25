@@ -1,0 +1,47 @@
+---
+namespace: ibm
+name: cloudcollection
+version: 1.0.3
+readme: README.md
+authors:
+  - IBM Cloud Team
+
+description: >-
+  IBM Cloud Ansible Collection - Pure Python implementation for managing
+  IBM Cloud VPC, Transit Gateway, and Platform services. No Terraform
+  dependencies required.
+
+license:
+  - GPL-3.0-or-later
+
+tags:
+  - ibm
+  - cloud
+  - vpc
+  - infrastructure
+  - networking
+  - platform
+  - transit_gateway
+  - iaas
+
+dependencies: {}
+
+repository: https://github.com/IBM/ansible-ibmcloud
+documentation: https://github.com/IBM/ansible-ibmcloud/tree/main/docs
+homepage: https://github.com/IBM/ansible-ibmcloud
+issues: https://github.com/IBM/ansible-ibmcloud/issues
+
+build_ignore:
+  - .git
+  - .gitignore
+  - .venv
+  - build
+  - temp_reference
+  - tools
+  - tests
+  - '*.pyc'
+  - '*.pyo'
+  - __pycache__
+  - .DS_Store
+  - '*.swp'
+  - '*.bak'

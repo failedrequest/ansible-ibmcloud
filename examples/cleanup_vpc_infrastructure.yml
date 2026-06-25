@@ -1,0 +1,137 @@
+---
+# Cleanup playbook: Remove all VPC infrastructure created by create_vpc_infrastructure.yml
+# This playbook removes resources in reverse order to handle dependencies
+
+- name: Cleanup IBM Cloud VPC Infrastructure
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration (must match create playbook)
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # Resource naming (must match create playbook)
+    vpc_name: demo-vpc
+    subnet_name: demo-subnet
+    security_group_name: demo-sg
+    instance_name: demo-instance
+    ssh_key_name: demo-ssh-key
+    floating_ip_name: "{{ instance_name }}-fip"
+
+  tasks:
+    - name: Delete floating IP
+      ibm_is_floating_ip:
+        name: "{{ floating_ip_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: fip_delete
+
+    - name: Display floating IP deletion status
+      debug:
+        msg: "Floating IP deletion: {{ 'Success' if not fip_delete.failed else 'Failed or not found' }}"
+
+    - name: Delete virtual server instance
+      ibm_is_instance:
+        name: "{{ instance_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      register: instance_delete
+
+    - name: Display instance deletion status
+      debug:
+        msg: "Instance deletion: {{ 'Success' if instance_delete.changed else 'Not found or already deleted' }}"
+
+    - name: Fail if instance deletion failed
+      fail:
+        msg: |
+          CRITICAL: Failed to delete Virtual Server Instance '{{ instance_name }}'.
+          Error: {{ instance_delete.msg | default('Unknown error') }}
+          
+          This playbook will stop here to prevent dependency issues with remaining resources.
+          
+          Action Required:
+          1. Check the error message above
+          2. Manually verify the instance status: ibmcloud is instance {{ instance_name }}
+          3. Resolve any issues and re-run this cleanup playbook
+      when: instance_delete.failed | default(false)
+
+    - name: Wait for instance deletion to complete
+      pause:
+        seconds: 30
+      when: instance_delete.changed
+
+    - name: Delete SSH key
+      ibm_is_ssh_key:
+        name: "{{ ssh_key_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: ssh_key_delete
+
+    - name: Display SSH key deletion status
+      debug:
+        msg: "SSH key deletion: {{ 'Success' if not ssh_key_delete.failed else 'Failed or not found' }}"
+
+    - name: Delete security group
+      ibm_is_security_group:
+        name: "{{ security_group_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: sg_delete
+
+    - name: Display security group deletion status
+      debug:
+        msg: "Security group deletion: {{ 'Success' if not sg_delete.failed else 'Failed or not found' }}"
+
+    - name: Delete subnet
+      ibm_is_subnet:
+        name: "{{ subnet_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: subnet_delete
+
+    - name: Display subnet deletion status
+      debug:
+        msg: "Subnet deletion: {{ 'Success' if not subnet_delete.failed else 'Failed or not found' }}"
+
+    - name: Wait for subnet deletion to complete
+      pause:
+        seconds: 10
+      when: not subnet_delete.failed
+
+    - name: Delete VPC
+      ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      ignore_errors: true
+      register: vpc_delete
+
+    - name: Display VPC deletion status
+      debug:
+        msg: "VPC deletion: {{ 'Success' if not vpc_delete.failed else 'Failed or not found' }}"
+
+    - name: Cleanup Summary
+      debug:
+        msg: |
+          ========================================
+          IBM Cloud Infrastructure Cleanup Complete
+          ========================================
+          
+          Resources Removed:
+            - Floating IP: {{ floating_ip_name }} - {{ 'Success' if not fip_delete.failed else 'Failed/Not Found' }}
+            - Instance: {{ instance_name }} - {{ 'Success' if not instance_delete.failed else 'Failed/Not Found' }}
+            - SSH Key: {{ ssh_key_name }} - {{ 'Success' if not ssh_key_delete.failed else 'Failed/Not Found' }}
+            - Security Group: {{ security_group_name }} - {{ 'Success' if not sg_delete.failed else 'Failed/Not Found' }}
+            - Subnet: {{ subnet_name }} - {{ 'Success' if not subnet_delete.failed else 'Failed/Not Found' }}
+            - VPC: {{ vpc_name }} - {{ 'Success' if not vpc_delete.failed else 'Failed/Not Found' }}
+          
+          Note: Resources that don't exist will show as 'Failed/Not Found'
+          
+          ========================================

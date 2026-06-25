@@ -1,0 +1,53 @@
+---
+# Cleanup playbook: Remove Virtual Network Interfaces
+# This playbook removes VNIs created by create_vni_with_reserved_ips.yml
+
+- name: Cleanup Virtual Network Interfaces
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    
+    # VNI names to delete
+    vni_names:
+      - vni-zone1-www
+      - vni-zone1-app
+      - vni-zone1-db
+
+  tasks:
+    - name: Delete VNIs
+      ibm_is_virtual_network_interface:
+        name: "{{ item }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      loop: "{{ vni_names }}"
+      ignore_errors: true
+      register: vni_deletes
+
+    - name: Display VNI deletion status
+      debug:
+        msg: |
+          VNI Deletion Results:
+          {% for result in vni_deletes.results %}
+            - {{ vni_names[loop.index0] }}: {{ 'Success' if result.changed else 'Not found or already deleted' }}
+          {% endfor %}
+
+    - name: Cleanup Summary
+      debug:
+        msg: |
+          ========================================
+          Virtual Network Interfaces Cleanup Complete
+          ========================================
+          
+          Resources Removed:
+          {% for result in vni_deletes.results %}
+            - {{ vni_names[loop.index0] }}: {{ 'Success' if result.changed else 'Not Found' }}
+          {% endfor %}
+          
+          Note: Resources that don't exist will show as 'Not Found'
+          
+          ========================================

@@ -1,0 +1,121 @@
+---
+# Example playbook: Create Virtual Network Interfaces with Reserved IPs
+# This demonstrates creating VNIs in each subnet with specific reserved IP addresses
+
+- name: Create Virtual Network Interfaces with Reserved IPs
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # Resource naming
+    vpc_name: custom-prefix-vpc
+    
+    # VNI configurations with reserved IPs (.150 in each subnet)
+    vnis:
+      - name: vni-zone1-www
+        subnet_name: zone1-www
+        reserved_ip: 198.18.0.150
+        purpose: Web tier VNI
+      - name: vni-zone1-app
+        subnet_name: zone1-app
+        reserved_ip: 198.18.1.150
+        purpose: Application tier VNI
+      - name: vni-zone1-db
+        subnet_name: zone1-db
+        reserved_ip: 198.18.2.150
+        purpose: Database tier VNI
+    
+    # Tags
+    resource_tags:
+      - env:custom-network
+      - managed-by:ansible
+      - project:ibm-cloud-native
+
+  tasks:
+    - name: Get VPC information
+      ibm_is_vpc_info:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+      register: vpc_lookup
+
+    - name: Fail if VPC not found
+      fail:
+        msg: "VPC '{{ vpc_name }}' not found. Please run create_vpc_custom_prefix.yml first."
+      when: not vpc_lookup.found
+
+    - name: Get subnet information
+      ibm_is_subnet_info:
+        name: "{{ item.subnet_name }}"
+        region: "{{ ibm_region }}"
+      loop: "{{ vnis }}"
+      register: subnet_lookups
+
+    - name: Create VNIs with reserved IPs
+      ibm_is_virtual_network_interface:
+        name: "{{ item.item.name }}"
+        subnet: "{{ item.resource.id }}"
+        primary_ip_address: "{{ item.item.reserved_ip }}"
+        primary_ip_name: "{{ item.item.name }}-ip"
+        enable_infrastructure_nat: true
+        region: "{{ ibm_region }}"
+        state: present
+      loop: "{{ subnet_lookups.results }}"
+      register: vni_results
+      when: item.found
+
+    - name: Display VNI information
+      debug:
+        msg: |
+          VNI Created:
+          - Name: {{ item.resource.name }}
+          - ID: {{ item.resource.id }}
+          - Primary IP: {{ item.resource.primary_ip.address }}
+          - Reserved IP Name: {{ item.resource.primary_ip.name }}
+          - Subnet: {{ vnis[ansible_loop.index0].subnet_name }}
+          - Purpose: {{ vnis[ansible_loop.index0].purpose }}
+          - Enable Infrastructure NAT: {{ item.resource.enable_infrastructure_nat }}
+      loop: "{{ vni_results.results }}"
+      loop_control:
+        extended: yes
+      when: item.changed is defined and item.changed
+
+    - name: Summary
+      debug:
+        msg: |
+          ========================================
+          Virtual Network Interfaces Created Successfully!
+          ========================================
+          
+          VPC: {{ vpc_name }}
+          Region: {{ ibm_region }}
+          
+          VNIs Created:
+          {% for result in vni_results.results %}
+          {% if result.changed is defined and result.changed %}
+            {{ loop.index }}. {{ result.resource.name }}
+               - Subnet: {{ vnis[loop.index0].subnet_name }}
+               - Reserved IP: {{ result.resource.primary_ip.address }}
+               - Reserved IP Name: {{ result.resource.primary_ip.name }}
+               - Purpose: {{ vnis[loop.index0].purpose }}
+               - Infrastructure NAT: {{ result.resource.enable_infrastructure_nat }}
+          {% endif %}
+          {% endfor %}
+          
+          Network Configuration:
+            - Web Tier VNI:    198.18.0.150 (zone1-www)
+            - App Tier VNI:    198.18.1.150 (zone1-app)
+            - Database Tier VNI: 198.18.2.150 (zone1-db)
+          
+          Next Steps:
+            1. Attach VNIs to instances or bare metal servers
+            2. Configure security groups for each VNI
+            3. Set up routing rules if needed
+            4. Test connectivity between tiers
+          
+          ========================================

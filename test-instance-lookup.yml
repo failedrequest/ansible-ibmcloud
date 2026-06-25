@@ -1,0 +1,18 @@
+---
+- name: Test Instance Lookup
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  tasks:
+    - name: Try to find and delete instance
+      ibm_is_instance:
+        name: demo-instance
+        region: us-south
+        state: absent
+      register: result
+    
+    - name: Show full result
+      debug:
+        var: result
