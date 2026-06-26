@@ -4,7 +4,7 @@ name: cloudcollection
 version: 1.0.3
 readme: README.md
 authors:
-  - IBM Cloud Team
+  - Mark Saad 
 
 description: >-
   IBM Cloud Ansible Collection - Pure Python implementation for managing
@@ -12,7 +12,7 @@ description: >-
   dependencies required.
 
 license:
-  - GPL-3.0-or-later
+  - BSD 2-Clause \"Simplified\" License
 
 tags:
   - ibm
@@ -26,10 +26,10 @@ tags:
 
 dependencies: {}
 
-repository: https://github.com/IBM/ansible-ibmcloud
-documentation: https://github.com/IBM/ansible-ibmcloud/tree/main/docs
-homepage: https://github.com/IBM/ansible-ibmcloud
-issues: https://github.com/IBM/ansible-ibmcloud/issues
+repository: https://github.com/failedrequest/ansible-ibmcloud
+documentation: https://github.com/failedrequest/ansible-ibmcloud/tree/main/docs
+homepage: https://github.com/failedrequest/ansible-ibmcloud
+issues: https://github.com/failedrequest/ansible-ibmcloud/issues
 
 build_ignore:
   - .git
