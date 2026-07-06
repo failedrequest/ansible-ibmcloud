@@ -1,0 +1,108 @@
+---
+- name: Test VPC Routes Module with Existing VPC
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Use the first VPC from the list
+    vpc_id: "r014-e500ef58-5827-4416-984a-af72f45a17e9"
+    routing_table_id: "r014-94dbe9a9-1e4d-4eef-932d-34a72d39c6c6"
+    zone: "us-east-1"
+  
+  tasks:
+    - name: Create first route (10.20.30.0/24 -> 192.168.1.1, priority 2)
+      ibm.cloudcollection.ibm_is_route:
+        region: "us-east"
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ routing_table_id }}"
+        name: "test-route-1-priority-2"
+        destination: "10.20.30.0/24"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 2
+        state: present
+      register: route1_result
+
+    - name: Display first route
+      debug:
+        msg: 
+          - "=========================================="
+          - "Route 1 Created Successfully"
+          - "=========================================="
+          - "ID: {{ route1_result.resource.id }}"
+          - "Name: {{ route1_result.resource.name }}"
+          - "Destination: {{ route1_result.resource.destination }}"
+          - "Action: {{ route1_result.resource.action }}"
+          - "Priority: {{ route1_result.resource.priority }}"
+
+    - name: Create second route (10.30.40.32/32 -> 192.168.2.1, priority 1)
+      ibm.cloudcollection.ibm_is_route:
+        region: "us-east"
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ routing_table_id }}"
+        name: "test-route-2-priority-1"
+        destination: "10.30.40.32/32"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 1
+        state: present
+      register: route2_result
+
+    - name: Display second route
+      debug:
+        msg: 
+          - "=========================================="
+          - "Route 2 Created Successfully"
+          - "=========================================="
+          - "ID: {{ route2_result.resource.id }}"
+          - "Name: {{ route2_result.resource.name }}"
+          - "Destination: {{ route2_result.resource.destination }}"
+          - "Action: {{ route2_result.resource.action }}"
+          - "Priority: {{ route2_result.resource.priority }}"
+
+    - name: Test Summary
+      debug:
+        msg:
+          - "=========================================="
+          - "VPC Routes Test Completed Successfully"
+          - "=========================================="
+          - "VPC ID: {{ vpc_id }}"
+          - "Routing Table ID: {{ routing_table_id }}"
+          - ""
+          - "Route 1:"
+          - "  ID: {{ route1_result.resource.id }}"
+          - "  Name: {{ route1_result.resource.name }}"
+          - "  Destination: {{ route1_result.resource.destination }}"
+          - "  Priority: {{ route1_result.resource.priority }}"
+          - ""
+          - "Route 2:"
+          - "  ID: {{ route2_result.resource.id }}"
+          - "  Name: {{ route2_result.resource.name }}"
+          - "  Destination: {{ route2_result.resource.destination }}"
+          - "  Priority: {{ route2_result.resource.priority }}"
+
+    - name: Cleanup - Delete route 1
+      ibm.cloudcollection.ibm_is_route:
+        region: "us-east"
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ routing_table_id }}"
+        id: "{{ route1_result.resource.id }}"
+        state: absent
+      register: delete1_result
+
+    - name: Cleanup - Delete route 2
+      ibm.cloudcollection.ibm_is_route:
+        region: "us-east"
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ routing_table_id }}"
+        id: "{{ route2_result.resource.id }}"
+        state: absent
+      register: delete2_result
+
+    - name: Cleanup Summary
+      debug:
+        msg:
+          - "=========================================="
+          - "Cleanup Completed"
+          - "=========================================="
+          - "Route 1 deleted: {{ delete1_result.changed }}"
+          - "Route 2 deleted: {{ delete2_result.changed }}"

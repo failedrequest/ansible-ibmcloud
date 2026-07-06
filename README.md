@@ -508,7 +508,7 @@ All IBM Cloud regions are supported:
 
 ## 📈 Version History
 
-- **v1.0.3** - Enhanced release with 72 modules
+- **v1.0.4** - Bug fixes and VPC routes support
   - 42 VPC Infrastructure modules
   - 4 VPC Info modules (read-only resource lookups)
   - 4 Transit Gateway modules

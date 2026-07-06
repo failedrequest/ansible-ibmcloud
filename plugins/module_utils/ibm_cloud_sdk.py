@@ -124,7 +124,9 @@ class IBMCloudSDKModule:
     def fail_json(self, msg: str, **kwargs):
         """Exit with JSON failure."""
         self.result.update(kwargs)
-        self.module.fail_json(msg=msg, **self.result)
+        # Remove msg from result to avoid duplicate parameter
+        result_copy = {k: v for k, v in self.result.items() if k != 'msg'}
+        self.module.fail_json(msg=msg, **result_copy)
     
     @staticmethod
     def get_resource_id(resource: Dict[str, Any]) -> Optional[str]:

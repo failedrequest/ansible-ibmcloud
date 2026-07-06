@@ -1,0 +1,73 @@
+---
+# Example playbook: Update VPC Route
+# This demonstrates updating an existing route in a VPC routing table
+
+- name: Update VPC Route
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    
+    # IBM Cloud API Key - can be set as variable or environment variable
+    # Option 1: Set as environment variable: export IC_API_KEY="your-api-key"
+    # Option 2: Uncomment and set directly (not recommended for production)
+    # ibmcloud_api_key: "your-api-key-here"
+    ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+    
+    # VPC Configuration
+    vpc_name: demo-vpc
+    
+    # Route Identification (use either name or id)
+    route_name: route-to-on-prem
+    # route_id: r006-route-id-here
+    
+    # Update Configuration
+    route_updates:
+      # New name for the route (optional)
+      new_name: route-to-on-prem-updated
+      # Update priority (only for delegate action routes, 0-4)
+      priority: 1
+      # Update advertise setting
+      advertise: true
+    
+    # Tags
+    resource_tags:
+      - env:demo
+      - managed-by:ansible
+      - purpose:routing
+      - updated:true
+
+  tasks:
+    - name: Get VPC information
+      ibm_is_vpc_info:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+      register: vpc_lookup
+
+    - name: Display VPC information
+      debug:
+        msg: |
+          Using VPC:
+          - Name: {{ vpc_lookup.resource.name }}
+          - ID: {{ vpc_lookup.resource.id }}
+          - Default Routing Table ID: {{ vpc_lookup.resource.default_routing_table.id }}
+
+    - name: Update VPC route
+      ibm_is_route:
+        vpc_id: "{{ vpc_lookup.resource.id }}"
+        routing_table_id: "{{ vpc_lookup.resource.default_routing_table.id }}"
+        name: "{{ route_name }}"
+        id: "{{ route_id | default(omit) }}"
+        priority: "{{ route_updates.priority | default(omit) }}"
+        advertise: "{{ route_updates.advertise | default(omit) }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: route_result
+
+    - name: Route update complete
+      debug:
+        msg: "VPC route '{{ route_name | default(route_id | default('unknown')) }}' in VPC '{{ vpc_name }}' - Update completed successfully"

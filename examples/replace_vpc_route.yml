@@ -1,0 +1,160 @@
+---
+# Example playbook: Replace VPC Route (Delete and Recreate)
+# This demonstrates replacing a route by deleting the old one and creating a new one
+# Use this when you need to change immutable fields like destination, action, or next_hop
+
+- name: Replace VPC Route (Delete and Recreate)
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # IBM Cloud API Key - can be set as variable or environment variable
+    # Option 1: Set as environment variable: export IC_API_KEY="your-api-key"
+    # Option 2: Uncomment and set directly (not recommended for production)
+    # ibmcloud_api_key: "your-api-key-here"
+    ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+    
+    # VPC Configuration
+    vpc_name: demo-vpc
+    
+    # Old Route to Delete (identify by name or ID)
+    old_route_name: route-to-on-prem
+    # old_route_id: r006-old-route-id
+    
+    # New Route Configuration
+    new_route:
+      name: route-to-on-prem-v2
+      destination: 192.168.200.0/24  # New destination
+      action: deliver
+      next_hop_address: 10.240.0.20  # New next hop
+      advertise: true
+
+  tasks:
+    - name: Get VPC information
+      ibm_is_vpc_info:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+      register: vpc_lookup
+
+    - name: Display VPC information
+      debug:
+        msg: |
+          Using VPC:
+          - Name: {{ vpc_lookup.resource.name }}
+          - ID: {{ vpc_lookup.resource.id }}
+          - Default Routing Table ID: {{ vpc_lookup.resource.default_routing_table.id }}
+
+    - name: Step 1 - Delete old route by name
+      ibm_is_route:
+        vpc_id: "{{ vpc_lookup.resource.id }}"
+        routing_table_id: "{{ vpc_lookup.resource.default_routing_table.id }}"
+        name: "{{ old_route_name }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      register: delete_result
+      when: old_route_name is defined
+
+    - name: Step 1 - Delete old route by ID
+      ibm_is_route:
+        vpc_id: "{{ vpc_lookup.resource.id }}"
+        routing_table_id: "{{ vpc_lookup.resource.default_routing_table.id }}"
+        id: "{{ old_route_id }}"
+        region: "{{ ibm_region }}"
+        state: absent
+      register: delete_result
+      when: old_route_id is defined and old_route_name is not defined
+
+    - name: Display deletion result
+      debug:
+        msg: |
+          Step 1 - Old Route Deletion:
+          - Status: {{ 'Deleted' if delete_result.changed else 'Not found or already deleted' }}
+          - Message: {{ delete_result.msg }}
+
+    - name: Wait for route deletion to propagate
+      pause:
+        seconds: 5
+      when: delete_result.changed
+
+    - name: Step 2 - Create new route with updated configuration
+      ibm_is_route:
+        vpc_id: "{{ vpc_lookup.resource.id }}"
+        routing_table_id: "{{ vpc_lookup.resource.default_routing_table.id }}"
+        name: "{{ new_route.name }}"
+        destination: "{{ new_route.destination }}"
+        zone: "{{ ibm_zone }}"
+        action: "{{ new_route.action }}"
+        next_hop:
+          address: "{{ new_route.next_hop_address }}"
+        advertise: "{{ new_route.advertise }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: create_result
+
+    - name: Display new route information
+      debug:
+        msg: |
+          Step 2 - New Route Created:
+          - ID: {{ create_result.resource.id }}
+          - Name: {{ create_result.resource.name }}
+          - Destination: {{ create_result.resource.destination }}
+          - Action: {{ create_result.resource.action }}
+          - Zone: {{ create_result.resource.zone.name }}
+          - Next Hop: {{ create_result.resource.next_hop.address }}
+          - Advertise: {{ create_result.resource.advertise }}
+          - Lifecycle State: {{ create_result.resource.lifecycle_state }}
+
+    - name: Summary
+      debug:
+        msg: |
+          ========================================
+          VPC Route Replaced Successfully!
+          ========================================
+          
+          VPC: {{ vpc_lookup.resource.name }}
+          Routing Table: {{ vpc_lookup.resource.default_routing_table.name }}
+          Region: {{ ibm_region }}
+          
+          Replacement Process:
+            Step 1: Delete Old Route
+              - Name: {{ old_route_name | default(old_route_id | default('N/A')) }}
+              - Status: {{ 'Deleted' if delete_result.changed else 'Not Found' }}
+            
+            Step 2: Create New Route
+              - Name: {{ create_result.resource.name }}
+              - ID: {{ create_result.resource.id }}
+              - Destination: {{ create_result.resource.destination }}
+              - Action: {{ create_result.resource.action }}
+              - Next Hop: {{ create_result.resource.next_hop.address }}
+              - Advertise: {{ create_result.resource.advertise }}
+              - State: {{ create_result.resource.lifecycle_state }}
+          
+          Why Delete and Recreate?
+            VPC routes have immutable fields that cannot be updated:
+            ✗ Destination CIDR
+            ✗ Action type (deliver, drop, delegate, delegate_vpc)
+            ✗ Next hop target (IP address or VPN gateway)
+            ✗ Zone
+          
+            To change these fields, you must:
+            1. Delete the existing route
+            2. Create a new route with the desired configuration
+          
+          Updatable Fields (use update_vpc_route.yml):
+            ✓ Name
+            ✓ Priority (for delegate action routes)
+            ✓ Advertise setting
+          
+          Next Steps:
+            1. Verify new route: ibmcloud is vpc-routing-table-route {{ vpc_lookup.resource.id }} {{ vpc_lookup.resource.default_routing_table.id }} {{ create_result.resource.id }}
+            2. Test connectivity to new destination: {{ new_route.destination }}
+            3. Monitor traffic flow to ensure proper routing
+            4. Update documentation with new route configuration
+          
+          ========================================

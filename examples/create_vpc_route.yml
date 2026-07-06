@@ -1,0 +1,77 @@
+---
+# Example playbook: Create VPC Route
+# This demonstrates creating a route in a VPC routing table
+
+- name: Create VPC Route
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - ibm.cloudcollection
+  
+  vars:
+    # IBM Cloud Configuration
+    ibm_region: us-south
+    ibm_zone: us-south-1
+    
+    # IBM Cloud API Key - can be set as variable or environment variable
+    # Option 1: Set as environment variable: export IC_API_KEY="your-api-key"
+    # Option 2: Uncomment and set directly (not recommended for production)
+    # ibmcloud_api_key: "your-api-key-here"
+    ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+    
+    # VPC Configuration
+    vpc_name: demo-vpc
+    
+    # Route Configuration
+    route_config:
+      name: route-to-on-prem
+      destination: 192.168.100.0/24
+      action: deliver
+      # For IP address next hop (requires zone)
+      next_hop_address: 10.240.0.10
+      # For VPN gateway next hop (uncomment and set VPN gateway ID)
+      # next_hop_id: r006-vpn-gateway-id
+      # For delegate action (uncomment and set priority)
+      # action: delegate
+      # priority: 2
+      advertise: false
+    
+    # Tags
+    resource_tags:
+      - env:demo
+      - managed-by:ansible
+      - purpose:routing
+
+  tasks:
+    - name: Get VPC information
+      ibm_is_vpc_info:
+        name: "{{ vpc_name }}"
+        region: "{{ ibm_region }}"
+      register: vpc_lookup
+
+    - name: Display VPC information
+      debug:
+        msg: |
+          Using VPC:
+          - Name: {{ vpc_lookup.resource.name }}
+          - ID: {{ vpc_lookup.resource.id }}
+          - Default Routing Table ID: {{ vpc_lookup.resource.default_routing_table.id }}
+
+    - name: Create VPC route
+      ibm_is_route:
+        vpc_id: "{{ vpc_lookup.resource.id }}"
+        routing_table_id: "{{ vpc_lookup.resource.default_routing_table.id }}"
+        name: "{{ route_config.name }}"
+        destination: "{{ route_config.destination }}"
+        zone: "{{ route_config.zone | default(ibm_zone) }}"
+        action: "{{ route_config.action }}"
+        next_hop: "{{ {'address': route_config.next_hop_address} if route_config.next_hop_address is defined else ({'id': route_config.next_hop_id} if route_config.next_hop_id is defined else omit) }}"
+        priority: "{{ route_config.priority | default(omit) }}"
+        advertise: "{{ route_config.advertise }}"
+        region: "{{ ibm_region }}"
+        state: present
+      register: route_result
+
+    - name: Route operation complete
+      debug:
+        msg: "VPC route '{{ route_config.name }}' in VPC '{{ vpc_name }}' - Operation completed successfully"

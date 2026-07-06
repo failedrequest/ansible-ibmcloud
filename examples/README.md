@@ -7,7 +7,7 @@ This directory contains example playbooks demonstrating various IBM Cloud infras
 1. **IBM Cloud Account**: Active IBM Cloud account with appropriate permissions
 2. **API Key**: IBM Cloud API key with VPC Infrastructure and Kubernetes Service permissions
 3. **Ansible**: Ansible 2.9 or higher installed
-4. **Collection**: `ibm.cloudcollection` v1.0.3 or higher installed
+4. **Collection**: `ibm.cloudcollection` v1.0.4 or higher installed
 
 ## Setup
 
@@ -150,7 +150,64 @@ ansible-playbook detach_vni_from_roks_cluster.yml
 
 ---
 
-### 5. Cleanup Playbooks
+### 5. VPC Routes Management
+
+**Prerequisites**: All VPC route playbooks require the `IC_API_KEY` environment variable to be set:
+```bash
+export IC_API_KEY="your-ibm-cloud-api-key"
+```
+
+**Create VPC Route**: `create_vpc_route.yml`
+
+Creates a route in a VPC routing table with various configuration options.
+
+**Usage**:
+```bash
+export IC_API_KEY="your-api-key"
+ansible-playbook create_vpc_route.yml
+```
+
+**What it creates**:
+- Route with IP address next hop
+- Route with VPN gateway next hop
+- Drop route (blocks traffic)
+- Delegate route (with priority)
+
+**Update VPC Route**: `update_vpc_route.yml`
+
+Updates an existing route's name, priority, or advertise settings.
+
+**Usage**:
+```bash
+export IC_API_KEY="your-api-key"
+ansible-playbook update_vpc_route.yml
+```
+
+**Replace VPC Route**: `replace_vpc_route.yml`
+
+Replaces a route by deleting and recreating it (for changing immutable fields).
+
+**Usage**:
+```bash
+export IC_API_KEY="your-api-key"
+ansible-playbook replace_vpc_route.yml
+```
+
+**Delete VPC Route**: `delete_vpc_route.yml`
+
+Deletes a route from a VPC routing table.
+
+**Usage**:
+```bash
+export IC_API_KEY="your-api-key"
+ansible-playbook delete_vpc_route.yml
+```
+
+**Note**: All VPC route playbooks require `IC_API_KEY` environment variable. The playbooks will fail with authentication errors if not set.
+
+---
+
+### 6. Cleanup Playbooks
 
 **VPC Infrastructure Cleanup**: `cleanup_vpc_infrastructure.yml`
 ```bash

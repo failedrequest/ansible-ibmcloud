@@ -1,0 +1,122 @@
+---
+- name: Test VPC Routes Module
+  hosts: localhost
+  gather_facts: true
+  vars:
+    region: "us-east"
+    zone: "us-east-1"
+  
+  tasks:
+    - name: Set VPC name with timestamp
+      set_fact:
+        vpc_name: "test-vpc-routes-{{ ansible_date_time.epoch }}"
+
+    - name: Create VPC
+      ibm.cloudcollection.ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        state: present
+      register: vpc_result
+
+    - name: Display VPC info
+      debug:
+        msg: 
+          - "VPC created with ID: {{ vpc_result.resource.id }}"
+          - "VPC Name: {{ vpc_result.resource.name }}"
+          - "Default Routing Table ID: {{ vpc_result.resource.default_routing_table.id }}"
+
+    - name: Create first route (10.20.30.0/24 -> 192.168.1.1, priority 2)
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_result.resource.id }}"
+        routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
+        name: "route-1-to-subnet-1"
+        destination: "10.20.30.0/24"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 2
+        next_hop:
+          address: "192.168.1.1"
+        state: present
+      register: route1_result
+
+    - name: Display first route
+      debug:
+        msg: 
+          - "Route 1 created successfully"
+          - "ID: {{ route1_result.resource.id }}"
+          - "Name: {{ route1_result.resource.name }}"
+          - "Destination: {{ route1_result.resource.destination }}"
+          - "Next Hop: {{ route1_result.resource.next_hop.address }}"
+          - "Priority: {{ route1_result.resource.priority }}"
+          - "Action: {{ route1_result.resource.action }}"
+
+    - name: Create second route (10.30.40.32/32 -> 192.168.2.1, priority 1)
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_result.resource.id }}"
+        routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
+        name: "route-2-to-host"
+        destination: "10.30.40.32/32"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 1
+        next_hop:
+          address: "192.168.2.1"
+        state: present
+      register: route2_result
+
+    - name: Display second route
+      debug:
+        msg: 
+          - "Route 2 created successfully"
+          - "ID: {{ route2_result.resource.id }}"
+          - "Name: {{ route2_result.resource.name }}"
+          - "Destination: {{ route2_result.resource.destination }}"
+          - "Next Hop: {{ route2_result.resource.next_hop.address }}"
+          - "Priority: {{ route2_result.resource.priority }}"
+          - "Action: {{ route2_result.resource.action }}"
+
+    - name: Test Summary
+      debug:
+        msg:
+          - "=========================================="
+          - "VPC Routes Test Completed Successfully"
+          - "=========================================="
+          - "VPC ID: {{ vpc_result.resource.id }}"
+          - "VPC Name: {{ vpc_result.resource.name }}"
+          - "Routing Table ID: {{ vpc_result.resource.default_routing_table.id }}"
+          - ""
+          - "Route 1:"
+          - "  ID: {{ route1_result.resource.id }}"
+          - "  Name: {{ route1_result.resource.name }}"
+          - "  Destination: {{ route1_result.resource.destination }}"
+          - "  Next Hop: {{ route1_result.resource.next_hop.address }}"
+          - "  Priority: {{ route1_result.resource.priority }}"
+          - ""
+          - "Route 2:"
+          - "  ID: {{ route2_result.resource.id }}"
+          - "  Name: {{ route2_result.resource.name }}"
+          - "  Destination: {{ route2_result.resource.destination }}"
+          - "  Next Hop: {{ route2_result.resource.next_hop.address }}"
+          - "  Priority: {{ route2_result.resource.priority }}"
+          - ""
+          - "To clean up, uncomment the cleanup section and run again"
+
+    # Cleanup section (commented out by default)
+    # Uncomment to delete the test resources
+    # - name: Delete route 1
+    #   ibm.cloudcollection.ibm_is_route:
+    #     vpc_id: "{{ vpc_result.resource.id }}"
+    #     routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
+    #     id: "{{ route1_result.resource.id }}"
+    #     state: absent
+    #
+    # - name: Delete route 2
+    #   ibm.cloudcollection.ibm_is_route:
+    #     vpc_id: "{{ vpc_result.resource.id }}"
+    #     routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
+    #     id: "{{ route2_result.resource.id }}"
+    #     state: absent
+    #
+    # - name: Delete VPC
+    #   ibm.cloudcollection.ibm_is_vpc:
+    #     id: "{{ vpc_result.resource.id }}"
+    #     state: absent
