@@ -54,7 +54,7 @@ temp_reference/
 *.tmp
 *.bak
 *.gz
-
+.bob/
 # Secrets
 .env
 secrets.yml
