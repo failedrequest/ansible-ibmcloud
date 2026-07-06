@@ -449,7 +449,7 @@ Contributions are welcome! Please:
 
 ## 📝 License
 
-GNU General Public License v3.0+
+BSD 2-Clause License
 
 See [LICENSE](LICENSE) for full details.
 

@@ -386,4 +386,4 @@ To add new modules:
 
 ## License
 
-GNU General Public License v3.0+
+BSD 2-Clause License

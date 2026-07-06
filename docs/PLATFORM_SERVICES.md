@@ -696,4 +696,4 @@ ansible-playbook playbook.yml -vvv
 
 ## License
 
-GNU General Public License v3.0+
+BSD 2-Clause License

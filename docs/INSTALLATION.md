@@ -499,4 +499,4 @@ python tools/generate_modules.py
 
 ## License
 
-GNU General Public License v3.0+
+BSD 2-Clause License
