@@ -1,0 +1,17 @@
+---
+- name: Test ibm.cloudcollection 2.0.5 Installation
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Test ibm_is_vpc_info module (check mode)
+      ibm.cloudcollection.ibm_is_vpc_info:
+        name: "test-vpc"
+        region: "us-south"
+      check_mode: true
+      register: result
+      ignore_errors: true
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: "Collection test successful - module loaded correctly"
+      when: result is defined

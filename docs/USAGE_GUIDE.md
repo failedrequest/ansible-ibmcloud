@@ -5,7 +5,7 @@ Complete guide for using the IBM Cloud Ansible Collection with `ansible-playbook
 ## Collection Overview
 
 **Namespace**: `ibm.cloudcollection`  
-**Version**: 1.0.0  
+**Version**: 2.0.5  
 **Total Modules**: 67 (42 VPC + 4 Transit Gateway + 21 Platform Services)
 
 ## Installation Verification
@@ -15,7 +15,7 @@ Complete guide for using the IBM Cloud Ansible Collection with `ansible-playbook
 .venv/bin/ansible-galaxy collection list | grep ibm
 
 # Expected output:
-# ibm.cloudcollection 1.0.0
+# ibm.cloudcollection 2.0.5
 ```
 
 ## Using the Collection

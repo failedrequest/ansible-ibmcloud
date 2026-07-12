@@ -1,7 +1,7 @@
 ---
 namespace: ibm
 name: cloudcollection
-version: 1.0.4
+version: 2.0.5
 readme: README.md
 authors:
   - Mark Saad 
@@ -9,7 +9,7 @@ authors:
 description: >-
   IBM Cloud Ansible Collection - Pure Python implementation for managing
   IBM Cloud VPC, Transit Gateway, and Platform services. No Terraform
-  dependencies required.
+  dependencies required. Version 2.x to avoid conflicts with official IBM collection.
 
 license:
   - BSD 2-Clause \"Simplified\" License

@@ -477,4 +477,4 @@ ibmcloud ks cluster get --cluster CLUSTER --output json
 ---
 
 **Last Updated**: 2024
-**Module Version**: 1.0.0
+**Module Version**: 2.0.5

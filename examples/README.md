@@ -7,7 +7,7 @@ This directory contains example playbooks demonstrating various IBM Cloud infras
 1. **IBM Cloud Account**: Active IBM Cloud account with appropriate permissions
 2. **API Key**: IBM Cloud API key with VPC Infrastructure and Kubernetes Service permissions
 3. **Ansible**: Ansible 2.9 or higher installed
-4. **Collection**: `ibm.cloudcollection` v1.0.4 or higher installed
+4. **Collection**: `ibm.cloudcollection` v2.0.5 or higher installed
 
 ## Setup
 

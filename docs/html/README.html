@@ -475,13 +475,18 @@ A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastru
 <h4>Option 1: Install from Pre-built Collection (Recommended)</h4>
 
 <pre><code><h1>Install Python dependencies</h1>
+
+<blockquote>
+<p><strong>Note:</strong> This collection uses version 2.x to avoid conflicts with the official IBM Cloud Ansible collection. The version bump ensures both collections can coexist if needed.</p>
+</blockquote>
+
 <p>
 pip install -r requirements.txt
 </p>
 
 <h1>Install the collection tarball</h1>
 <p>
-ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz
 </p>
 
 <h1>Set your IBM Cloud API key</h1>
@@ -510,7 +515,7 @@ ansible-galaxy collection build
 
 <h1>Install the built collection</h1>
 <p>
-ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz
 </p>
 
 <h1>Set your IBM Cloud API key</h1>

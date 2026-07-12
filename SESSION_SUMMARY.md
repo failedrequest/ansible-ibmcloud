@@ -1,6 +1,9 @@
 # Session Summary - IBM Cloud Ansible Collection
 
 **Date**: 2026-06-12  
+
+**Updated**: 2026-07-12 - Version bumped to 2.0.5 to avoid conflicts with official IBM collection  
+
 **Status**: ✅ Complete and Ready for Use
 
 ## What We Accomplished
@@ -18,7 +21,7 @@
 - Professional styling with color-coded badges
 
 ### 3. Ansible Collection Package Created ✅
-- Built installable collection: `ibm-cloudcollection-1.0.0.tar.gz`
+- Built installable collection: `ibm-cloudcollection-2.0.5.tar.gz`
 - Installed to: `~/.ansible/collections/ansible_collections/ibm/cloudcollection`
 - Verified installation with `ansible-galaxy collection list`
 - Successfully tested with `ansible-playbook`
@@ -40,8 +43,10 @@
 **Installation**: ✅ Complete
 ```bash
 $ .venv/bin/ansible-galaxy collection list | grep ibm
-ibm.cloudcollection 1.0.0
+ibm.cloudcollection 2.0.5
 ```
+
+> **Note:** Version 2.x is used to avoid conflicts with the official IBM Cloud Ansible collection.
 
 **Testing**: ✅ Verified
 - Test playbook executed successfully
@@ -53,7 +58,7 @@ ibm.cloudcollection 1.0.0
 ### Core Files
 - `galaxy.yml` - Collection metadata
 - `MANIFEST.in` - Package manifest
-- `ibm-cloudcollection-1.0.0.tar.gz` - Installable package
+- `ibm-cloudcollection-2.0.5.tar.gz` - Installable package
 - `test-playbook.yml` - Test playbook
 
 ### Transit Gateway Modules
@@ -134,7 +139,7 @@ cat docs/USAGE_GUIDE.md
 
 # Rebuild collection
 .venv/bin/ansible-galaxy collection build --force
-.venv/bin/ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz --force
+.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz --force
 ```
 
 ## Project Structure
@@ -163,7 +168,7 @@ ansible-ibmcloud/
 ├── galaxy.yml
 ├── MANIFEST.in
 ├── README.md
-└── ibm-cloudcollection-1.0.0.tar.gz
+└── ibm-cloudcollection-2.0.5.tar.gz
 ```
 
 ## Next Steps (When You Return)

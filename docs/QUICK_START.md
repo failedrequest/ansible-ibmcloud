@@ -11,9 +11,12 @@ cd ansible-ibmcloud
 ./setup.sh
 source .venv/bin/activate
 
+> **Note:** This collection uses version 2.x to avoid conflicts with the official IBM Cloud Ansible collection. The version bump ensures both collections can coexist if needed.
+
+
 # 2. Build and install collection
 .venv/bin/ansible-galaxy collection build --force
-.venv/bin/ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz --force
+.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz --force
 
 # 3. Verify installation
 .venv/bin/ansible-galaxy collection list | grep ibm
@@ -187,7 +190,7 @@ Create `my-first-vpc.yml`:
 .venv/bin/ansible-galaxy collection list | grep ibm
 
 # Reinstall if needed
-.venv/bin/ansible-galaxy collection install ibm-cloudcollection-1.0.0.tar.gz --force
+.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz --force
 ```
 
 ### API authentication errors
