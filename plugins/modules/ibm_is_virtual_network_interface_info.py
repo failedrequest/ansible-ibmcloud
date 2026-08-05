@@ -154,20 +154,20 @@ except ImportError:
 
 class IBMVirtualNetworkInterfaceInfoModule(IBMCloudSDKModule):
     """IBM Cloud Virtual Network Interface info module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
-    
+
     def get_resource_by_id(self, resource_id: str):
         """Get VNI by ID."""
         try:
@@ -177,21 +177,21 @@ class IBMVirtualNetworkInterfaceInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve virtual network interface {resource_id}")
-    
+
     def get_resource_by_name(self, resource_name: str):
         """Get VNI by name."""
         try:
             response = self.vpc_service.list_virtual_network_interfaces()
             vnis = response.get_result().get('virtual_network_interfaces', [])
-            
+
             for vni in vnis:
                 if vni.get('name') == resource_name:
                     return vni
-            
+
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list virtual network interfaces to find {resource_name}")
-    
+
     def list_all_resources(self):
         """List all VNIs."""
         try:
@@ -199,13 +199,13 @@ class IBMVirtualNetworkInterfaceInfoModule(IBMCloudSDKModule):
             return response.get_result().get('virtual_network_interfaces', [])
         except ApiException as e:
             self.handle_api_exception(e, "list virtual network interfaces")
-    
+
     def run(self):
         """Execute the module logic."""
         # If both name and id are provided, fail
         if self.resource_id and self.resource_name:
             self.fail_json(msg="Parameters 'id' and 'name' are mutually exclusive")
-        
+
         # Get specific VNI by ID
         if self.resource_id:
             resource = self.get_resource_by_id(self.resource_id)
@@ -216,7 +216,7 @@ class IBMVirtualNetworkInterfaceInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"Virtual network interface {self.resource_id} not found"
-        
+
         # Get specific VNI by name
         elif self.resource_name:
             resource = self.get_resource_by_name(self.resource_name)
@@ -227,14 +227,14 @@ class IBMVirtualNetworkInterfaceInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"Virtual network interface '{self.resource_name}' not found"
-        
+
         # List all VNIs
         else:
             resources = self.list_all_resources()
             self.result['resources'] = resources
             self.result['found'] = len(resources) > 0
             self.result['msg'] = f"Found {len(resources)} virtual network interface(s)"
-        
+
         self.exit_json()
 
 
@@ -245,17 +245,17 @@ def main():
         'name': {'type': 'str', 'required': False},
         'id': {'type': 'str', 'required': False}
     })
-    
+
     # Remove state parameter as this is an info module
     if 'state' in argument_spec:
         del argument_spec['state']
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
         mutually_exclusive=[['name', 'id']]
     )
-    
+
     info_module = IBMVirtualNetworkInterfaceInfoModule(module)
     info_module.run()
 

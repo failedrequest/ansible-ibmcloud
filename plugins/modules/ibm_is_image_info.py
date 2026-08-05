@@ -147,21 +147,21 @@ except ImportError:
 
 class IBMImageInfoModule(IBMCloudSDKModule):
     """IBM Cloud Image info module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
         self.visibility = self.params.get('visibility')
-    
+
     def get_resource_by_id(self, resource_id: str):
         """Get image by ID."""
         try:
@@ -171,39 +171,39 @@ class IBMImageInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve image {resource_id}")
-    
+
     def get_resource_by_name(self, resource_name: str):
         """Get image by name."""
         try:
             response = self.vpc_service.list_images()
             images = response.get_result().get('images', [])
-            
+
             for image in images:
                 if image.get('name') == resource_name:
                     return image
-            
+
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list images to find {resource_name}")
-    
+
     def list_all_resources(self):
         """List all images, optionally filtered by visibility."""
         try:
             kwargs = {}
             if self.visibility:
                 kwargs['visibility'] = self.visibility
-            
+
             response = self.vpc_service.list_images(**kwargs)
             return response.get_result().get('images', [])
         except ApiException as e:
             self.handle_api_exception(e, "list images")
-    
+
     def run(self):
         """Execute the module logic."""
         # If both name and id are provided, fail
         if self.resource_id and self.resource_name:
             self.fail_json(msg="Parameters 'id' and 'name' are mutually exclusive")
-        
+
         # Get specific image by ID
         if self.resource_id:
             resource = self.get_resource_by_id(self.resource_id)
@@ -214,7 +214,7 @@ class IBMImageInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"Image {self.resource_id} not found"
-        
+
         # Get specific image by name
         elif self.resource_name:
             resource = self.get_resource_by_name(self.resource_name)
@@ -225,18 +225,18 @@ class IBMImageInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"Image '{self.resource_name}' not found"
-        
+
         # List all images
         else:
             resources = self.list_all_resources()
             self.result['resources'] = resources
             self.result['found'] = len(resources) > 0
-            
+
             if self.visibility:
                 self.result['msg'] = f"Found {len(resources)} {self.visibility} image(s)"
             else:
                 self.result['msg'] = f"Found {len(resources)} image(s)"
-        
+
         self.exit_json()
 
 
@@ -248,17 +248,17 @@ def main():
         'id': {'type': 'str', 'required': False},
         'visibility': {'type': 'str', 'choices': ['public', 'private'], 'required': False}
     })
-    
+
     # Remove state parameter as this is an info module
     if 'state' in argument_spec:
         del argument_spec['state']
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
         mutually_exclusive=[['name', 'id']]
     )
-    
+
     info_module = IBMImageInfoModule(module)
     info_module.run()
 

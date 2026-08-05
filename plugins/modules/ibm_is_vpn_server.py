@@ -95,20 +95,20 @@ except ImportError:
 
 class IBMVpnServerModule(IBMCloudSDKModule):
     """IBM Cloud Vpn Server module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
-    
+
     def get_resource(self, resource_id: str):
         """Get resource by ID."""
         try:
@@ -118,19 +118,19 @@ class IBMVpnServerModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve vpn_server {resource_id}")
-    
+
     def list_resources(self):
         """List all resources."""
         try:
             response = self.vpc_service.list_vpn_servers()
             return response.get_result().get('vpn_servers', [])
         except ApiException as e:
-            self.handle_api_exception(e, f"list vpn_servers")
-    
+            self.handle_api_exception(e, "list vpn_servers")
+
     def create_resource(self):
         """Create a new resource."""
         self.check_mode_exit(changed=True, msg=f"Would create vpn_server: {self.resource_name}")
-        
+
         try:
             prototype = {
             'name': self.resource_name,
@@ -139,29 +139,29 @@ class IBMVpnServerModule(IBMCloudSDKModule):
             'client_ip_pool': self.params.get('client_ip_pool'),
             'subnets': self.params.get('subnets')
         }
-            
+
             response = self.vpc_service.create_vpn_server(**prototype)
             resource = response.get_result()
-            
+
             self.result['changed'] = True
             self.result['resource'] = resource
             self.result['msg'] = f"vpn_server {self.resource_name} created successfully"
-            
+
         except ApiException as e:
             self.handle_api_exception(e, f"create vpn_server {self.resource_name}")
-    
+
     def update_resource(self, resource):
         """Update an existing resource."""
         changed = False
         updates = {}
-        
+
         if self.resource_name and resource.get('name') != self.resource_name:
             updates['name'] = self.resource_name
             changed = True
-        
+
         if updates:
             self.check_mode_exit(changed=True, msg=f"Would update vpn_server: {resource['id']}")
-            
+
             try:
                 response = self.vpc_service.update_vpn_server(
                     id=resource['id'],
@@ -171,22 +171,22 @@ class IBMVpnServerModule(IBMCloudSDKModule):
                 changed = True
             except ApiException as e:
                 self.handle_api_exception(e, f"update vpn_server {resource['id']}")
-        
+
         self.result['changed'] = changed
         self.result['resource'] = resource
         self.result['msg'] = f"vpn_server {resource['name']} " + ("updated" if changed else "unchanged")
-    
+
     def delete_resource(self, resource_id: str):
         """Delete a resource."""
         self.check_mode_exit(changed=True, msg=f"Would delete vpn_server: {resource_id}")
-        
+
         try:
             self.vpc_service.delete_vpn_server(id=resource_id)
             self.result['changed'] = True
             self.result['msg'] = f"vpn_server {resource_id} deleted successfully"
         except ApiException as e:
             self.handle_api_exception(e, f"delete vpn_server {resource_id}")
-    
+
     def run(self):
         """Execute the module logic."""
         existing_resource = None
@@ -198,19 +198,19 @@ class IBMVpnServerModule(IBMCloudSDKModule):
                 if res.get('name') == self.resource_name:
                     existing_resource = res
                     break
-        
+
         if self.state == 'present':
             if existing_resource:
                 self.update_resource(existing_resource)
             else:
                 self.create_resource()
-        
+
         elif self.state == 'absent':
             if existing_resource:
                 self.delete_resource(existing_resource['id'])
             else:
-                self.result['msg'] = f"vpn_server not found"
-        
+                self.result['msg'] = "vpn_server not found"
+
         self.exit_json()
 
 
@@ -225,12 +225,12 @@ def main():
         'port': {'type': 'str', 'required': False},
         'protocol': {'type': 'str', 'required': False}
     })
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True
     )
-    
+
     resource_module = IBMVpnServerModule(module)
     resource_module.run()
 

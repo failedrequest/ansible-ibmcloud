@@ -17,6 +17,11 @@ requirements:
     - ibm-vpc >= 0.33.0
     - ibm-cloud-sdk-core >= 3.20.0
 options:
+    vpn_gateway_id:
+        description:
+            - ID of the VPN gateway
+        type: str
+        required: true
     name:
         description:
             - Name of the resource
@@ -90,74 +95,80 @@ except ImportError:
 
 class IBMVpnGatewayConnectionModule(IBMCloudSDKModule):
     """IBM Cloud Vpn Gateway Connection module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
+        self.vpn_gateway_id = self.params.get('vpn_gateway_id')
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
-    
+
     def get_resource(self, resource_id: str):
         """Get resource by ID."""
         try:
-            response = self.vpc_service.get_vpn_gateway_connection(id=resource_id)
+            response = self.vpc_service.get_vpn_gateway_connection(
+                vpn_gateway_id=self.vpn_gateway_id,
+                id=resource_id
+            )
             return response.get_result()
         except ApiException as e:
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve vpn_gateway_connection {resource_id}")
-    
+
     def list_resources(self):
         """List all resources."""
         try:
-            response = self.vpc_service.list_vpn_gateway_connections()
+            response = self.vpc_service.list_vpn_gateway_connections(
+                vpn_gateway_id=self.vpn_gateway_id
+            )
             return response.get_result().get('connections', [])
         except ApiException as e:
-            self.handle_api_exception(e, f"list vpn_gateway_connections")
-    
+            self.handle_api_exception(e, "list vpn_gateway_connections")
+
     def create_resource(self):
         """Create a new resource."""
         self.check_mode_exit(changed=True, msg=f"Would create vpn_gateway_connection: {self.resource_name}")
-        
+
         try:
             prototype = {
-            'name': self.resource_name,
             'name': self.params.get('name'),
             'peer_address': self.params.get('peer_address'),
             'preshared_key': self.params.get('preshared_key')
         }
-            
+
             response = self.vpc_service.create_vpn_gateway_connection(**prototype)
             resource = response.get_result()
-            
+
             self.result['changed'] = True
             self.result['resource'] = resource
             self.result['msg'] = f"vpn_gateway_connection {self.resource_name} created successfully"
-            
+
         except ApiException as e:
             self.handle_api_exception(e, f"create vpn_gateway_connection {self.resource_name}")
-    
+
     def update_resource(self, resource):
         """Update an existing resource."""
         changed = False
         updates = {}
-        
+
         if self.resource_name and resource.get('name') != self.resource_name:
             updates['name'] = self.resource_name
             changed = True
-        
+
         if updates:
             self.check_mode_exit(changed=True, msg=f"Would update vpn_gateway_connection: {resource['id']}")
-            
+
             try:
                 response = self.vpc_service.update_vpn_gateway_connection(
+                    vpn_gateway_id=self.vpn_gateway_id,
                     id=resource['id'],
                     vpn_gateway_connection_patch=updates
                 )
@@ -165,22 +176,25 @@ class IBMVpnGatewayConnectionModule(IBMCloudSDKModule):
                 changed = True
             except ApiException as e:
                 self.handle_api_exception(e, f"update vpn_gateway_connection {resource['id']}")
-        
+
         self.result['changed'] = changed
         self.result['resource'] = resource
         self.result['msg'] = f"vpn_gateway_connection {resource['name']} " + ("updated" if changed else "unchanged")
-    
+
     def delete_resource(self, resource_id: str):
         """Delete a resource."""
         self.check_mode_exit(changed=True, msg=f"Would delete vpn_gateway_connection: {resource_id}")
-        
+
         try:
-            self.vpc_service.delete_vpn_gateway_connection(id=resource_id)
+            self.vpc_service.delete_vpn_gateway_connection(
+                vpn_gateway_id=self.vpn_gateway_id,
+                id=resource_id
+            )
             self.result['changed'] = True
             self.result['msg'] = f"vpn_gateway_connection {resource_id} deleted successfully"
         except ApiException as e:
             self.handle_api_exception(e, f"delete vpn_gateway_connection {resource_id}")
-    
+
     def run(self):
         """Execute the module logic."""
         existing_resource = None
@@ -192,19 +206,19 @@ class IBMVpnGatewayConnectionModule(IBMCloudSDKModule):
                 if res.get('name') == self.resource_name:
                     existing_resource = res
                     break
-        
+
         if self.state == 'present':
             if existing_resource:
                 self.update_resource(existing_resource)
             else:
                 self.create_resource()
-        
+
         elif self.state == 'absent':
             if existing_resource:
                 self.delete_resource(existing_resource['id'])
             else:
-                self.result['msg'] = f"vpn_gateway_connection not found"
-        
+                self.result['msg'] = "vpn_gateway_connection not found"
+
         self.exit_json()
 
 
@@ -212,18 +226,19 @@ def main():
     """Main module execution."""
     argument_spec = get_common_argument_spec()
     argument_spec.update({
+        'vpn_gateway_id': {'type': 'str', 'required': True},
         'name': {'type': 'str', 'required': True},
         'id': {'type': 'str', 'required': False},
         'local_cidrs': {'type': 'str', 'required': False},
         'peer_cidrs': {'type': 'str', 'required': False},
         'admin_state_up': {'type': 'str', 'required': False}
     })
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True
     )
-    
+
     resource_module = IBMVpnGatewayConnectionModule(module)
     resource_module.run()
 

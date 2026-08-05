@@ -90,20 +90,20 @@ except ImportError:
 
 class IBMInstanceGroupManagerModule(IBMCloudSDKModule):
     """IBM Cloud Instance Group Manager module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
-    
+
     def get_resource(self, resource_id: str):
         """Get resource by ID."""
         try:
@@ -113,47 +113,47 @@ class IBMInstanceGroupManagerModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve instance_group_manager {resource_id}")
-    
+
     def list_resources(self):
         """List all resources."""
         try:
             response = self.vpc_service.list_instance_group_managers()
             return response.get_result().get('managers', [])
         except ApiException as e:
-            self.handle_api_exception(e, f"list instance_group_managers")
-    
+            self.handle_api_exception(e, "list instance_group_managers")
+
     def create_resource(self):
         """Create a new resource."""
         self.check_mode_exit(changed=True, msg=f"Would create instance_group_manager: {self.resource_name}")
-        
+
         try:
             prototype = {
             'name': self.resource_name,
             'name': self.params.get('name')
         }
-            
+
             response = self.vpc_service.create_instance_group_manager(**prototype)
             resource = response.get_result()
-            
+
             self.result['changed'] = True
             self.result['resource'] = resource
             self.result['msg'] = f"instance_group_manager {self.resource_name} created successfully"
-            
+
         except ApiException as e:
             self.handle_api_exception(e, f"create instance_group_manager {self.resource_name}")
-    
+
     def update_resource(self, resource):
         """Update an existing resource."""
         changed = False
         updates = {}
-        
+
         if self.resource_name and resource.get('name') != self.resource_name:
             updates['name'] = self.resource_name
             changed = True
-        
+
         if updates:
             self.check_mode_exit(changed=True, msg=f"Would update instance_group_manager: {resource['id']}")
-            
+
             try:
                 response = self.vpc_service.update_instance_group_manager(
                     id=resource['id'],
@@ -163,22 +163,22 @@ class IBMInstanceGroupManagerModule(IBMCloudSDKModule):
                 changed = True
             except ApiException as e:
                 self.handle_api_exception(e, f"update instance_group_manager {resource['id']}")
-        
+
         self.result['changed'] = changed
         self.result['resource'] = resource
         self.result['msg'] = f"instance_group_manager {resource['name']} " + ("updated" if changed else "unchanged")
-    
+
     def delete_resource(self, resource_id: str):
         """Delete a resource."""
         self.check_mode_exit(changed=True, msg=f"Would delete instance_group_manager: {resource_id}")
-        
+
         try:
             self.vpc_service.delete_instance_group_manager(id=resource_id)
             self.result['changed'] = True
             self.result['msg'] = f"instance_group_manager {resource_id} deleted successfully"
         except ApiException as e:
             self.handle_api_exception(e, f"delete instance_group_manager {resource_id}")
-    
+
     def run(self):
         """Execute the module logic."""
         existing_resource = None
@@ -190,19 +190,19 @@ class IBMInstanceGroupManagerModule(IBMCloudSDKModule):
                 if res.get('name') == self.resource_name:
                     existing_resource = res
                     break
-        
+
         if self.state == 'present':
             if existing_resource:
                 self.update_resource(existing_resource)
             else:
                 self.create_resource()
-        
+
         elif self.state == 'absent':
             if existing_resource:
                 self.delete_resource(existing_resource['id'])
             else:
-                self.result['msg'] = f"instance_group_manager not found"
-        
+                self.result['msg'] = "instance_group_manager not found"
+
         self.exit_json()
 
 
@@ -216,12 +216,12 @@ def main():
         'min_membership_count': {'type': 'str', 'required': False},
         'aggregation_window': {'type': 'str', 'required': False}
     })
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True
     )
-    
+
     resource_module = IBMInstanceGroupManagerModule(module)
     resource_module.run()
 

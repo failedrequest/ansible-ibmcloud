@@ -173,21 +173,21 @@ except ImportError:
 
 class IBMSubnetInfoModule(IBMCloudSDKModule):
     """IBM Cloud Subnet info module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
         self.vpc_filter = self.params.get('vpc')
-    
+
     def get_resource_by_id(self, resource_id: str):
         """Get subnet by ID."""
         try:
@@ -197,55 +197,55 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve subnet {resource_id}")
-    
+
     def get_vpc_id_by_name(self, vpc_name: str):
         """Get VPC ID by name."""
         try:
             response = self.vpc_service.list_vpcs()
             vpcs = response.get_result().get('vpcs', [])
-            
+
             for vpc in vpcs:
                 if vpc.get('name') == vpc_name:
                     return vpc.get('id')
-            
+
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {vpc_name}")
-    
+
     def get_resource_by_name(self, resource_name: str):
         """Get subnet by name."""
         try:
             response = self.vpc_service.list_subnets()
             subnets = response.get_result().get('subnets', [])
-            
+
             for subnet in subnets:
                 if subnet.get('name') == resource_name:
                     return subnet
-            
+
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list subnets to find {resource_name}")
-    
+
     def list_all_resources(self, vpc_id: str = None):
         """List all subnets, optionally filtered by VPC."""
         try:
             response = self.vpc_service.list_subnets()
             subnets = response.get_result().get('subnets', [])
-            
+
             # Filter by VPC if specified
             if vpc_id:
                 subnets = [s for s in subnets if s.get('vpc', {}).get('id') == vpc_id]
-            
+
             return subnets
         except ApiException as e:
             self.handle_api_exception(e, "list subnets")
-    
+
     def run(self):
         """Execute the module logic."""
         # If both name and id are provided, fail
         if self.resource_id and self.resource_name:
             self.fail_json(msg="Parameters 'id' and 'name' are mutually exclusive")
-        
+
         # Get specific subnet by ID
         if self.resource_id:
             resource = self.get_resource_by_id(self.resource_id)
@@ -256,7 +256,7 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"Subnet {self.resource_id} not found"
-        
+
         # Get specific subnet by name
         elif self.resource_name:
             resource = self.get_resource_by_name(self.resource_name)
@@ -267,11 +267,11 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"Subnet '{self.resource_name}' not found"
-        
+
         # List all subnets (optionally filtered by VPC)
         else:
             vpc_id = None
-            
+
             # If VPC filter is specified, resolve it
             if self.vpc_filter:
                 # Check if it's a VPC ID (starts with 'r006-' or similar)
@@ -282,16 +282,16 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
                     vpc_id = self.get_vpc_id_by_name(self.vpc_filter)
                     if not vpc_id:
                         self.fail_json(msg=f"VPC '{self.vpc_filter}' not found")
-            
+
             resources = self.list_all_resources(vpc_id)
             self.result['resources'] = resources
             self.result['found'] = len(resources) > 0
-            
+
             if vpc_id:
                 self.result['msg'] = f"Found {len(resources)} subnet(s) in VPC {self.vpc_filter}"
             else:
                 self.result['msg'] = f"Found {len(resources)} subnet(s)"
-        
+
         self.exit_json()
 
 
@@ -303,17 +303,17 @@ def main():
         'id': {'type': 'str', 'required': False},
         'vpc': {'type': 'str', 'required': False}
     })
-    
+
     # Remove state parameter as this is an info module
     if 'state' in argument_spec:
         del argument_spec['state']
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
         mutually_exclusive=[['name', 'id']]
     )
-    
+
     info_module = IBMSubnetInfoModule(module)
     info_module.run()
 

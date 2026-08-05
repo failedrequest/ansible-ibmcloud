@@ -227,22 +227,22 @@ except ImportError:
 
 class IBMRouteModule(IBMCloudSDKModule):
     """IBM Cloud VPC Route module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.vpc_id = self.params.get('vpc_id')
         self.routing_table_id = self.params.get('routing_table_id')
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
-    
+
     def get_resource(self, resource_id: str):
         """Get route by ID."""
         try:
@@ -256,7 +256,7 @@ class IBMRouteModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve route {resource_id}")
-    
+
     def list_resources(self):
         """List all routes in the routing table."""
         try:
@@ -266,42 +266,42 @@ class IBMRouteModule(IBMCloudSDKModule):
             )
             return response.get_result().get('routes', [])
         except ApiException as e:
-            self.handle_api_exception(e, f"list routes")
-    
+            self.handle_api_exception(e, "list routes")
+
     def create_resource(self):
         """Create a new route."""
         self.check_mode_exit(changed=True, msg=f"Would create route: {self.resource_name}")
-        
+
         # Validate required parameters for creation
         destination = self.params.get('destination')
         if not destination:
             self.fail_json(msg="destination is required when creating a route")
-        
+
         action = self.params.get('action', 'deliver')
-        
+
         try:
             # Build the route prototype
             prototype = {
                 'destination': destination,
                 'action': action
             }
-            
+
             # Add name if provided
             if self.resource_name:
                 prototype['name'] = self.resource_name
-            
+
             # Handle next_hop based on action
             if action == 'deliver':
                 next_hop = self.params.get('next_hop')
                 if not next_hop:
                     self.fail_json(msg="next_hop is required when action is 'deliver'")
-                
+
                 if 'address' in next_hop:
                     # IP address next hop requires zone
                     zone = self.params.get('zone')
                     if not zone:
                         self.fail_json(msg="zone is required when next_hop is an IP address")
-                    
+
                     from ibm_vpc.vpc_v1 import (
                         RouteNextHopPrototypeRouteNextHopIPRouteNextHopIPUnicastIP,
                         ZoneIdentityByName
@@ -310,14 +310,14 @@ class IBMRouteModule(IBMCloudSDKModule):
                         address=next_hop['address']
                     )
                     prototype['zone'] = ZoneIdentityByName(name=zone)
-                    
+
                 elif 'id' in next_hop:
                     # VPN gateway or connection next hop
                     from ibm_vpc.vpc_v1 import RouteNextHopPrototypeVPNGatewayConnectionIdentity
                     prototype['next_hop'] = RouteNextHopPrototypeVPNGatewayConnectionIdentity(
                         id=next_hop['id']
                     )
-            
+
             # Handle priority for delegate action
             if action == 'delegate':
                 priority = self.params.get('priority')
@@ -325,18 +325,18 @@ class IBMRouteModule(IBMCloudSDKModule):
                     if priority < 0 or priority > 4:
                         self.fail_json(msg="priority must be between 0 and 4")
                     prototype['priority'] = priority
-                
+
                 # For delegate action, zone is still required by SDK even though not used
                 zone = self.params.get('zone')
                 if zone:
                     from ibm_vpc.vpc_v1 import ZoneIdentityByName
                     prototype['zone'] = ZoneIdentityByName(name=zone)
-            
+
             # Handle advertise setting
             advertise = self.params.get('advertise')
             if advertise is not None:
                 prototype['advertise'] = advertise
-            
+
             # Call the SDK method - build kwargs dynamically
             create_kwargs = {
                 'vpc_id': self.vpc_id,
@@ -344,7 +344,7 @@ class IBMRouteModule(IBMCloudSDKModule):
                 'destination': destination,
                 'action': action
             }
-            
+
             # Add optional parameters only if they are set
             if prototype.get('zone'):
                 create_kwargs['zone'] = prototype['zone']
@@ -356,27 +356,27 @@ class IBMRouteModule(IBMCloudSDKModule):
                 create_kwargs['priority'] = prototype['priority']
             if prototype.get('advertise') is not None:
                 create_kwargs['advertise'] = prototype['advertise']
-            
+
             response = self.vpc_service.create_vpc_routing_table_route(**create_kwargs)
             resource = response.get_result()
-            
+
             self.result['changed'] = True
             self.result['resource'] = resource
             self.result['msg'] = f"Route {resource.get('name', resource['id'])} created successfully"
-            
+
         except ApiException as e:
             self.handle_api_exception(e, f"create route {self.resource_name}")
-    
+
     def update_resource(self, resource):
         """Update an existing route."""
         changed = False
         updates = {}
-        
+
         # Check for name update
         if self.resource_name and resource.get('name') != self.resource_name:
             updates['name'] = self.resource_name
             changed = True
-        
+
         # Check for priority update (only for delegate action)
         if resource.get('action') == 'delegate':
             priority = self.params.get('priority')
@@ -385,16 +385,16 @@ class IBMRouteModule(IBMCloudSDKModule):
                     self.fail_json(msg="priority must be between 0 and 4")
                 updates['priority'] = priority
                 changed = True
-        
+
         # Check for advertise update
         advertise = self.params.get('advertise')
         if advertise is not None and resource.get('advertise') != advertise:
             updates['advertise'] = advertise
             changed = True
-        
+
         if updates:
             self.check_mode_exit(changed=True, msg=f"Would update route: {resource['id']}")
-            
+
             try:
                 response = self.vpc_service.update_vpc_routing_table_route(
                     vpc_id=self.vpc_id,
@@ -406,15 +406,15 @@ class IBMRouteModule(IBMCloudSDKModule):
                 changed = True
             except ApiException as e:
                 self.handle_api_exception(e, f"update route {resource['id']}")
-        
+
         self.result['changed'] = changed
         self.result['resource'] = resource
         self.result['msg'] = f"Route {resource.get('name', resource['id'])} " + ("updated" if changed else "unchanged")
-    
+
     def delete_resource(self, resource_id: str):
         """Delete a route."""
         self.check_mode_exit(changed=True, msg=f"Would delete route: {resource_id}")
-        
+
         try:
             self.vpc_service.delete_vpc_routing_table_route(
                 vpc_id=self.vpc_id,
@@ -425,7 +425,7 @@ class IBMRouteModule(IBMCloudSDKModule):
             self.result['msg'] = f"Route {resource_id} deleted successfully"
         except ApiException as e:
             self.handle_api_exception(e, f"delete route {resource_id}")
-    
+
     def run(self):
         """Execute the module logic."""
         # Validate required parameters
@@ -433,7 +433,7 @@ class IBMRouteModule(IBMCloudSDKModule):
             self.fail_json(msg="vpc_id is required")
         if not self.routing_table_id:
             self.fail_json(msg="routing_table_id is required")
-        
+
         existing_resource = None
         if self.resource_id:
             existing_resource = self.get_resource(self.resource_id)
@@ -443,19 +443,19 @@ class IBMRouteModule(IBMCloudSDKModule):
                 if res.get('name') == self.resource_name:
                     existing_resource = res
                     break
-        
+
         if self.state == 'present':
             if existing_resource:
                 self.update_resource(existing_resource)
             else:
                 self.create_resource()
-        
+
         elif self.state == 'absent':
             if existing_resource:
                 self.delete_resource(existing_resource['id'])
             else:
-                self.result['msg'] = f"Route not found"
-        
+                self.result['msg'] = "Route not found"
+
         self.exit_json()
 
 
@@ -486,7 +486,7 @@ def main():
         'priority': {'type': 'int', 'required': False},
         'advertise': {'type': 'bool', 'required': False, 'default': False}
     })
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -494,7 +494,7 @@ def main():
             ['state', 'absent', ['id', 'name'], True]
         ]
     )
-    
+
     resource_module = IBMRouteModule(module)
     resource_module.run()
 

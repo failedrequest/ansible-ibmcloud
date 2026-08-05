@@ -192,27 +192,27 @@ except ImportError:
 
 class IBMVPCModule(IBMCloudSDKModule):
     """IBM Cloud VPC module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the VPC module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required. Install with: pip install ibm-vpc")
-        
+
         # Initialize VPC service
         self.vpc_service = VpcV1(
             authenticator=self.auth.get_authenticator()
         )
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         # Module-specific parameters
         self.vpc_id = self.params.get('id')
         self.vpc_name = self.params.get('name')
         self.address_prefix_management = self.params.get('address_prefix_management', 'auto')
         self.classic_access = self.params.get('classic_access', False)
         self.tags = self.params.get('tags', [])
-    
+
     def get_vpc_by_id(self, vpc_id: str):
         """Get VPC by ID."""
         try:
@@ -222,24 +222,24 @@ class IBMVPCModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve VPC {vpc_id}")
-    
+
     def get_vpc_by_name(self, name: str):
         """Get VPC by name."""
         try:
             response = self.vpc_service.list_vpcs()
             vpcs = response.get_result().get('vpcs', [])
-            
+
             for vpc in vpcs:
                 if vpc.get('name') == name:
                     return vpc
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {name}")
-    
+
     def create_vpc(self):
         """Create a new VPC."""
         self.check_mode_exit(changed=True, msg=f"Would create VPC: {self.vpc_name}")
-        
+
         try:
             # Prepare VPC prototype
             vpc_prototype = {
@@ -247,58 +247,58 @@ class IBMVPCModule(IBMCloudSDKModule):
                 'address_prefix_management': self.address_prefix_management,
                 'classic_access': self.classic_access
             }
-            
+
             # Add optional parameters
             if self.resource_group_id:
                 vpc_prototype['resource_group'] = {'id': self.resource_group_id}
-            
+
             if self.params.get('default_network_acl_name'):
                 vpc_prototype['default_network_acl'] = {
                     'name': self.params['default_network_acl_name']
                 }
-            
+
             if self.params.get('default_routing_table_name'):
                 vpc_prototype['default_routing_table'] = {
                     'name': self.params['default_routing_table_name']
                 }
-            
+
             if self.params.get('default_security_group_name'):
                 vpc_prototype['default_security_group'] = {
                     'name': self.params['default_security_group_name']
                 }
-            
+
             if self.params.get('dns'):
                 vpc_prototype['dns'] = self.params['dns']
-            
+
             # Create VPC
             response = self.vpc_service.create_vpc(**vpc_prototype)
             vpc = response.get_result()
-            
+
             # Add tags if specified
             if self.tags:
                 self._add_tags(vpc['crn'], self.tags)
-            
+
             self.result['changed'] = True
             self.result['resource'] = vpc
             self.result['msg'] = f"VPC {self.vpc_name} created successfully"
-            
+
         except ApiException as e:
             self.handle_api_exception(e, f"create VPC {self.vpc_name}")
-    
+
     def update_vpc(self, vpc):
         """Update an existing VPC."""
         changed = False
         updates = {}
-        
+
         # Check for name change
         if self.vpc_name and vpc.get('name') != self.vpc_name:
             updates['name'] = self.vpc_name
             changed = True
-        
+
         # Update VPC if changes detected
         if updates:
             self.check_mode_exit(changed=True, msg=f"Would update VPC: {vpc['id']}")
-            
+
             try:
                 response = self.vpc_service.update_vpc(
                     id=vpc['id'],
@@ -308,60 +308,60 @@ class IBMVPCModule(IBMCloudSDKModule):
                 changed = True
             except ApiException as e:
                 self.handle_api_exception(e, f"update VPC {vpc['id']}")
-        
+
         # Handle tags
         if self.tags:
             # Note: Tag management would require additional IBM Cloud Global Tagging API
             # This is a placeholder for tag update logic
             pass
-        
+
         self.result['changed'] = changed
         self.result['resource'] = vpc
         self.result['msg'] = f"VPC {vpc['name']} updated" if changed else f"VPC {vpc['name']} unchanged"
-    
+
     def delete_vpc(self, vpc_id: str):
         """Delete a VPC."""
         self.check_mode_exit(changed=True, msg=f"Would delete VPC: {vpc_id}")
-        
+
         try:
             self.vpc_service.delete_vpc(id=vpc_id)
             self.result['changed'] = True
             self.result['msg'] = f"VPC {vpc_id} deleted successfully"
         except ApiException as e:
             self.handle_api_exception(e, f"delete VPC {vpc_id}")
-    
+
     def _add_tags(self, crn: str, tags: list):
         """Add tags to a resource (placeholder for Global Tagging API)."""
         # This would require the IBM Cloud Global Tagging API
         # For now, this is a placeholder
         pass
-    
+
     def run(self):
         """Execute the module logic."""
         # Validate required parameters
         if self.state == 'present' and not self.vpc_name:
             self.fail_json(msg="'name' is required when state is 'present'")
-        
+
         # Get existing VPC - support lookup by ID or name
         existing_vpc = None
         if self.vpc_id:
             existing_vpc = self.get_vpc_by_id(self.vpc_id)
         elif self.vpc_name:
             existing_vpc = self.get_vpc_by_name(self.vpc_name)
-        
+
         # Handle state
         if self.state == 'present':
             if existing_vpc:
                 self.update_vpc(existing_vpc)
             else:
                 self.create_vpc()
-        
+
         elif self.state == 'absent':
             if existing_vpc:
                 self.delete_vpc(existing_vpc['id'])
             else:
                 self.result['msg'] = f"VPC '{self.vpc_name or self.vpc_id}' not found"
-        
+
         self.exit_json()
 
 
@@ -383,12 +383,12 @@ def main():
         'dns': {'type': 'dict', 'required': False},
         'tags': {'type': 'list', 'elements': 'str', 'required': False}
     })
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True
     )
-    
+
     vpc_module = IBMVPCModule(module)
     vpc_module.run()
 

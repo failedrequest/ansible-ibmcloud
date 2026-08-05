@@ -145,20 +145,20 @@ except ImportError:
 
 class IBMVPCInfoModule(IBMCloudSDKModule):
     """IBM Cloud VPC info module implementation."""
-    
+
     def __init__(self, module):
         """Initialize the module."""
         super().__init__(module)
-        
+
         if not HAS_IBM_VPC:
             self.fail_json(msg="ibm-vpc Python SDK is required")
-        
+
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
-        
+
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
-    
+
     def get_resource_by_id(self, resource_id: str):
         """Get VPC by ID."""
         try:
@@ -168,21 +168,21 @@ class IBMVPCInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve VPC {resource_id}")
-    
+
     def get_resource_by_name(self, resource_name: str):
         """Get VPC by name."""
         try:
             response = self.vpc_service.list_vpcs()
             vpcs = response.get_result().get('vpcs', [])
-            
+
             for vpc in vpcs:
                 if vpc.get('name') == resource_name:
                     return vpc
-            
+
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {resource_name}")
-    
+
     def list_all_resources(self):
         """List all VPCs."""
         try:
@@ -190,13 +190,13 @@ class IBMVPCInfoModule(IBMCloudSDKModule):
             return response.get_result().get('vpcs', [])
         except ApiException as e:
             self.handle_api_exception(e, "list VPCs")
-    
+
     def run(self):
         """Execute the module logic."""
         # If both name and id are provided, fail
         if self.resource_id and self.resource_name:
             self.fail_json(msg="Parameters 'id' and 'name' are mutually exclusive")
-        
+
         # Get specific VPC by ID
         if self.resource_id:
             resource = self.get_resource_by_id(self.resource_id)
@@ -207,7 +207,7 @@ class IBMVPCInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"VPC {self.resource_id} not found"
-        
+
         # Get specific VPC by name
         elif self.resource_name:
             resource = self.get_resource_by_name(self.resource_name)
@@ -218,14 +218,14 @@ class IBMVPCInfoModule(IBMCloudSDKModule):
             else:
                 self.result['found'] = False
                 self.result['msg'] = f"VPC '{self.resource_name}' not found"
-        
+
         # List all VPCs
         else:
             resources = self.list_all_resources()
             self.result['resources'] = resources
             self.result['found'] = len(resources) > 0
             self.result['msg'] = f"Found {len(resources)} VPC(s)"
-        
+
         self.exit_json()
 
 
@@ -236,17 +236,17 @@ def main():
         'name': {'type': 'str', 'required': False},
         'id': {'type': 'str', 'required': False}
     })
-    
+
     # Remove state parameter as this is an info module
     if 'state' in argument_spec:
         del argument_spec['state']
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
         mutually_exclusive=[['name', 'id']]
     )
-    
+
     info_module = IBMVPCInfoModule(module)
     info_module.run()
 
