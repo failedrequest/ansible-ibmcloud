@@ -16,7 +16,7 @@ source .venv/bin/activate
 
 # 2. Build and install collection
 .venv/bin/ansible-galaxy collection build --force
-.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz --force
+.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz --force
 
 # 3. Verify installation
 .venv/bin/ansible-galaxy collection list | grep ibm
@@ -71,9 +71,10 @@ Create `my-first-vpc.yml`:
 
 ## Available Modules
 
-### VPC Infrastructure (42 modules)
+### VPC Infrastructure (43 modules)
 - `ibm_is_vpc` - Virtual Private Cloud
 - `ibm_is_subnet` - Subnets
+- `ibm_is_subnet_reserved_ip` - Subnet Reserved IPs
 - `ibm_is_instance` - Virtual Server Instances
 - `ibm_is_security_group` - Security Groups
 - `ibm_is_load_balancer` - Load Balancers
@@ -190,7 +191,7 @@ Create `my-first-vpc.yml`:
 .venv/bin/ansible-galaxy collection list | grep ibm
 
 # Reinstall if needed
-.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz --force
+.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz --force
 ```
 
 ### API authentication errors

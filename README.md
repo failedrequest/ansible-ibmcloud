@@ -4,7 +4,7 @@ A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastru
 
 ## 🎯 Features
 
-- ✅ **72 Production-Ready Modules** covering VPC, Transit Gateway, Kubernetes Service, Platform services, and Info modules
+- ✅ **73 Production-Ready Modules** covering VPC, Transit Gateway, Kubernetes Service, Platform services, and Info modules
 - ✅ **Pure Python Implementation** - Direct IBM Cloud SDK integration
 - ✅ **No Terraform Dependency** - Native API calls only
 - ✅ **Idempotent Operations** - Safe to run multiple times
@@ -15,7 +15,7 @@ A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastru
 
 ## 📦 Module Inventory
 
-### VPC Infrastructure Services (42 modules)
+### VPC Infrastructure Services (43 modules)
 
 #### Info Modules (4 modules)
 - `ibm_is_vpc_info` - Retrieve VPC information
@@ -37,6 +37,7 @@ A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastru
 - `ibm_is_endpoint_gateway` - VPC endpoints
 - `ibm_is_network_interface` - Network interfaces
 - `ibm_is_virtual_network_interface` - Virtual network interfaces
+- `ibm_is_subnet_reserved_ip` - Subnet reserved IPs
 - `ibm_is_flow_log` - Flow log collectors
 
 #### Compute (8 modules)
@@ -139,7 +140,7 @@ A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastru
 pip install -r requirements.txt
 
 # Install the collection tarball
-ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz
 
 # Set your IBM Cloud API key
 export IC_API_KEY="your-api-key-here"
@@ -159,7 +160,7 @@ pip install -r requirements.txt
 ansible-galaxy collection build
 
 # Install the built collection
-ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz
 
 # Set your IBM Cloud API key
 export IC_API_KEY="your-api-key-here"
@@ -247,7 +248,7 @@ vars:
 ansible-ibmcloud/
 ├── plugins/
 │   ├── modules/              # 63 Ansible modules
-│   │   ├── ibm_is_*.py      # VPC Infrastructure (42)
+│   │   ├── ibm_is_*.py      # VPC Infrastructure (43)
 │   │   ├── ibm_cos_*.py     # Cloud Object Storage (1)
 │   │   ├── ibm_iam_*.py     # IAM (5)
 │   │   ├── ibm_resource_*.py # Resource Management (4)
@@ -477,12 +478,12 @@ See [LICENSE](LICENSE) for full details.
 
 | Category | Modules | Status |
 |----------|---------|--------|
-| VPC Infrastructure | 42 | ✅ Complete |
+| VPC Infrastructure | 43 | ✅ Complete |
 | VPC Info Modules | 4 | ✅ Complete |
 | Transit Gateway | 4 | ✅ Complete |
 | Kubernetes Service | 1 | ✅ Complete |
 | Platform Services | 21 | ✅ Complete |
-| **Total** | **72** | **✅ Production Ready** |
+| **Total** | **73** | **✅ Production Ready** |
 
 ## 🔐 Security
 
@@ -510,6 +511,12 @@ All IBM Cloud regions are supported:
 - br-sao
 
 ## 📈 Version History
+
+- **v2.0.6** - Add standalone `ibm_is_subnet_reserved_ip` module
+  - New: `ibm_is_subnet_reserved_ip` — create, update, and delete VPC subnet reserved IPs
+  - 43 VPC Infrastructure modules (was 42)
+  - 73 total modules (was 72)
+  - Unit test suite added: `test/test_ibm_is_subnet_reserved_ip.py` (14 tests, 100% pass)
 
 - **v2.0.5** - Version bump to avoid conflicts with official IBM collection, bug fixes and VPC routes support
   - 42 VPC Infrastructure modules

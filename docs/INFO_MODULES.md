@@ -517,4 +517,4 @@ msg: "..."         # Status message
 ---
 
 **Last Updated**: 2024
-**Module Version**: 2.0.5
+**Module Version**: 2.0.6

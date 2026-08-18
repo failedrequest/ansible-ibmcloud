@@ -1,6 +1,6 @@
 # IBM Cloud VPC (IS) Module Reference
 
-Complete reference for all 42+ IBM Cloud VPC Infrastructure Services modules.
+Complete reference for all 43 IBM Cloud VPC Infrastructure Services modules.
 
 ## Module Categories
 
@@ -24,6 +24,7 @@ Complete reference for all 42+ IBM Cloud VPC Infrastructure Services modules.
 - **ibm_is_endpoint_gateway** - Manage VPC endpoint gateways
 - **ibm_is_network_interface** - Manage instance network interfaces
 - **ibm_is_virtual_network_interface** - Manage virtual network interfaces
+- **ibm_is_subnet_reserved_ip** - Manage subnet reserved IPs
 
 #### Flow Logs
 - **ibm_is_flow_log** - Manage VPC flow log collectors
