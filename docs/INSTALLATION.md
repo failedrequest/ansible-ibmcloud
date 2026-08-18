@@ -13,7 +13,7 @@ Complete guide for installing and using the IBM Cloud Ansible Collection.
 
 ### Method 1: Install from Pre-built Collection Tarball (Recommended)
 
-This is the simplest method for production use. The collection is distributed as a pre-built tarball (`ibm-cloudcollection-2.0.5.tar.gz`).
+This is the simplest method for production use. The collection is distributed as a pre-built tarball (`ibm-cloudcollection-2.0.6.tar.gz`).
 
 #### Step 1: Install Python Dependencies
 
@@ -41,7 +41,7 @@ The `requirements.txt` includes:
 
 ```bash
 # Install the pre-built collection tarball
-ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz
 
 # Verify installation
 ansible-galaxy collection list | grep ibm
@@ -107,7 +107,7 @@ pip install -r requirements.txt
 # Build the collection tarball
 ansible-galaxy collection build
 
-# This creates: ibm-cloudcollection-2.0.5.tar.gz
+# This creates: ibm-cloudcollection-2.0.6.tar.gz
 ```
 
 The build process:
@@ -121,10 +121,10 @@ The build process:
 
 ```bash
 # Install the newly built collection
-ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz
 
 # Or force reinstall if already installed
-ansible-galaxy collection install --force ibm-cloudcollection-2.0.5.tar.gz
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.6.tar.gz
 ```
 
 #### Step 5: Set IBM Cloud API Key
@@ -190,7 +190,7 @@ Once published to Ansible Galaxy:
 ansible-galaxy collection install ibm.cloudcollection
 
 # Install specific version
-ansible-galaxy collection install ibm.cloudcollection:2.0.5
+ansible-galaxy collection install ibm.cloudcollection:2.0.6
 ```
 
 ## Configuration
@@ -436,7 +436,7 @@ git pull origin main
 ```bash
 # Rebuild and reinstall
 ansible-galaxy collection build --force
-ansible-galaxy collection install --force ibm-cloudcollection-2.0.5.tar.gz
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.6.tar.gz
 ```
 
 ## Uninstallation

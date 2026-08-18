@@ -1,8 +1,10 @@
 # Session Summary - IBM Cloud Ansible Collection
 
-**Date**: 2026-06-12  
+**Date**: 2026-06-12
 
-**Updated**: 2026-07-12 - Version bumped to 2.0.5 to avoid conflicts with official IBM collection  
+**Updated**: 2026-07-12 - Version bumped to 2.0.5 to avoid conflicts with official IBM collection
+
+**Updated**: 2026-07-13 - Version 2.0.6: added `ibm_is_subnet_reserved_ip` module
 
 **Status**: ✅ Complete and Ready for Use
 
@@ -35,15 +37,15 @@
 
 ## Collection Status
 
-**Total Modules**: 67
-- 42 VPC Infrastructure modules
+**Total Modules**: 73
+- 43 VPC Infrastructure modules (includes new `ibm_is_subnet_reserved_ip`)
 - 4 Transit Gateway modules
 - 21 Platform Service modules
 
 **Installation**: ✅ Complete
 ```bash
 $ .venv/bin/ansible-galaxy collection list | grep ibm
-ibm.cloudcollection 2.0.5
+ibm.cloudcollection 2.0.6
 ```
 
 > **Note:** Version 2.x is used to avoid conflicts with the official IBM Cloud Ansible collection.
@@ -56,10 +58,14 @@ ibm.cloudcollection 2.0.5
 ## Files Created This Session
 
 ### Core Files
-- `galaxy.yml` - Collection metadata
+- `galaxy.yml` - Collection metadata (bumped to 2.0.6)
 - `MANIFEST.in` - Package manifest
-- `ibm-cloudcollection-2.0.5.tar.gz` - Installable package
+- `ibm-cloudcollection-2.0.6.tar.gz` - Installable package
 - `test-playbook.yml` - Test playbook
+
+### v2.0.6 Changes
+- `plugins/modules/ibm_is_subnet_reserved_ip.py` - New standalone reserved IP module
+- `test/test_ibm_is_subnet_reserved_ip.py` - 14-test unit suite (all passing)
 
 ### Transit Gateway Modules
 - `plugins/modules/ibm_tg_gateway.py`
@@ -139,7 +145,7 @@ cat docs/USAGE_GUIDE.md
 
 # Rebuild collection
 .venv/bin/ansible-galaxy collection build --force
-.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.5.tar.gz --force
+.venv/bin/ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz --force
 ```
 
 ## Project Structure
@@ -168,7 +174,7 @@ ansible-ibmcloud/
 ├── galaxy.yml
 ├── MANIFEST.in
 ├── README.md
-└── ibm-cloudcollection-2.0.5.tar.gz
+└── ibm-cloudcollection-2.0.6.tar.gz
 ```
 
 ## Next Steps (When You Return)
