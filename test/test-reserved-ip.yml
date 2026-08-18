@@ -1,0 +1,285 @@
+---
+# Test playbook for ibm_is_subnet_reserved_ip module
+#
+# What this test does:
+#   1. Create a VPC named "test-rip-vpc"
+#   2. Create an address prefix in that VPC
+#   3. Create a subnet using that address prefix CIDR
+#   4. Create three reserved IPs:
+#        rip-auto   — IBM assigns the address automatically
+#        rip-static — a specific address is requested
+#        rip-nodelete — auto_delete: false
+#   5. Assert all reserved IPs landed in the correct subnet
+#   6. Update rip-auto: rename it to rip-auto-renamed
+#   7. Assert the rename is reflected
+#   8. Re-run creation of rip-static (idempotency — expect changed: false)
+#   9. Cleanup: delete reserved IPs, subnet, address prefix, VPC (reverse order)
+#
+# Usage:
+#   export IC_API_KEY="your-api-key"
+#   ansible-playbook test/test-reserved-ip.yml
+#
+# The playbook uses always-run cleanup blocks so resources are removed
+# even if an assertion or task fails mid-run.
+
+- name: Test ibm_is_subnet_reserved_ip module
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    region: us-south
+    zone: us-south-1
+    vpc_name: test-rip-vpc
+    prefix_name: test-rip-prefix
+    subnet_name: test-rip-subnet
+    prefix_cidr: "10.77.0.0/24"
+    rip_auto_name: rip-auto
+    rip_auto_renamed: rip-auto-renamed
+    rip_static_name: rip-static
+    rip_static_address: "10.77.0.50"
+    rip_nodelete_name: rip-nodelete
+
+  tasks:
+
+    # -----------------------------------------------------------------------
+    # SETUP
+    # -----------------------------------------------------------------------
+
+    - name: "[setup] Create VPC test-rip-vpc"
+      ibm.cloudcollection.ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        region: "{{ region }}"
+        state: present
+      register: vpc_result
+
+    - name: "[setup] Display VPC info"
+      debug:
+        msg:
+          - "VPC ID   : {{ vpc_result.resource.id }}"
+          - "VPC Name : {{ vpc_result.resource.name }}"
+          - "Changed  : {{ vpc_result.changed }}"
+
+    - name: "[setup] Create address prefix {{ prefix_cidr }} in zone {{ zone }}"
+      ibm.cloudcollection.ibm_is_address_prefix:
+        name: "{{ prefix_name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        zone: "{{ zone }}"
+        cidr: "{{ prefix_cidr }}"
+        state: present
+      register: prefix_result
+
+    - name: "[setup] Display address prefix info"
+      debug:
+        msg:
+          - "Prefix ID   : {{ prefix_result.resource.id }}"
+          - "Prefix CIDR : {{ prefix_result.resource.cidr }}"
+          - "Changed     : {{ prefix_result.changed }}"
+
+    - name: "[setup] Create subnet {{ subnet_name }}"
+      ibm.cloudcollection.ibm_is_subnet:
+        name: "{{ subnet_name }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        zone: "{{ zone }}"
+        ipv4_cidr_block: "{{ prefix_cidr }}"
+        region: "{{ region }}"
+        state: present
+      register: subnet_result
+
+    - name: "[setup] Display subnet info"
+      debug:
+        msg:
+          - "Subnet ID   : {{ subnet_result.resource.id }}"
+          - "Subnet Name : {{ subnet_result.resource.name }}"
+          - "CIDR        : {{ subnet_result.resource.ipv4_cidr_block }}"
+          - "Changed     : {{ subnet_result.changed }}"
+
+    # -----------------------------------------------------------------------
+    # TEST 1 — Create reserved IPs
+    # -----------------------------------------------------------------------
+
+    - name: "[test 1a] Create auto-assigned reserved IP: {{ rip_auto_name }}"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        name: "{{ rip_auto_name }}"
+        region: "{{ region }}"
+        state: present
+      register: rip_auto_result
+
+    - name: "[test 1a] Assert rip-auto was created"
+      assert:
+        that:
+          - rip_auto_result.changed == true
+          - rip_auto_result.resource.id is defined
+          - rip_auto_result.resource.name == rip_auto_name
+          - rip_auto_result.resource.address is defined
+        fail_msg: "rip-auto creation failed: {{ rip_auto_result }}"
+        success_msg: "✅ rip-auto created at {{ rip_auto_result.resource.address }}"
+
+    - name: "[test 1b] Create static reserved IP: {{ rip_static_name }} at {{ rip_static_address }}"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        name: "{{ rip_static_name }}"
+        address: "{{ rip_static_address }}"
+        region: "{{ region }}"
+        state: present
+      register: rip_static_result
+
+    - name: "[test 1b] Assert rip-static was created at the correct address"
+      assert:
+        that:
+          - rip_static_result.changed == true
+          - rip_static_result.resource.address == rip_static_address
+          - rip_static_result.resource.name == rip_static_name
+        fail_msg: "rip-static creation failed: {{ rip_static_result }}"
+        success_msg: "✅ rip-static created at {{ rip_static_result.resource.address }}"
+
+    - name: "[test 1c] Create reserved IP with auto_delete=false: {{ rip_nodelete_name }}"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        name: "{{ rip_nodelete_name }}"
+        auto_delete: false
+        region: "{{ region }}"
+        state: present
+      register: rip_nodelete_result
+
+    - name: "[test 1c] Assert rip-nodelete created with auto_delete=false"
+      assert:
+        that:
+          - rip_nodelete_result.changed == true
+          - rip_nodelete_result.resource.auto_delete == false
+          - rip_nodelete_result.resource.name == rip_nodelete_name
+        fail_msg: "rip-nodelete creation failed: {{ rip_nodelete_result }}"
+        success_msg: "✅ rip-nodelete created (auto_delete=false)"
+
+    # -----------------------------------------------------------------------
+    # TEST 2 — Update: rename rip-auto → rip-auto-renamed
+    # -----------------------------------------------------------------------
+
+    - name: "[test 2] Rename {{ rip_auto_name }} to {{ rip_auto_renamed }}"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        id: "{{ rip_auto_result.resource.id }}"
+        name: "{{ rip_auto_renamed }}"
+        region: "{{ region }}"
+        state: present
+      register: rip_rename_result
+
+    - name: "[test 2] Assert rename was applied and changed=true"
+      assert:
+        that:
+          - rip_rename_result.changed == true
+          - rip_rename_result.resource.name == rip_auto_renamed
+        fail_msg: "Rename failed: {{ rip_rename_result }}"
+        success_msg: "✅ Renamed to {{ rip_rename_result.resource.name }}"
+
+    # -----------------------------------------------------------------------
+    # TEST 3 — Idempotency: re-run rip-static creation, expect no change
+    # -----------------------------------------------------------------------
+
+    - name: "[test 3] Re-run rip-static (idempotency check)"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        name: "{{ rip_static_name }}"
+        address: "{{ rip_static_address }}"
+        region: "{{ region }}"
+        state: present
+      register: rip_idem_result
+
+    - name: "[test 3] Assert no change on second run"
+      assert:
+        that:
+          - rip_idem_result.changed == false
+          - rip_idem_result.resource.address == rip_static_address
+        fail_msg: "Idempotency check failed — changed=true on second run: {{ rip_idem_result }}"
+        success_msg: "✅ Idempotent — no change on second run"
+
+    # -----------------------------------------------------------------------
+    # TEST SUMMARY
+    # -----------------------------------------------------------------------
+
+    - name: "[summary] All tests passed"
+      debug:
+        msg:
+          - "=========================================="
+          - "  ibm_is_subnet_reserved_ip — all tests passed"
+          - "=========================================="
+          - "VPC            : {{ vpc_result.resource.id }}"
+          - "Subnet         : {{ subnet_result.resource.id }} ({{ prefix_cidr }})"
+          - "rip-auto       : {{ rip_auto_result.resource.id }} @ {{ rip_auto_result.resource.address }}"
+          - "rip-auto(new)  : name={{ rip_rename_result.resource.name }}"
+          - "rip-static     : {{ rip_static_result.resource.id }} @ {{ rip_static_result.resource.address }}"
+          - "rip-nodelete   : {{ rip_nodelete_result.resource.id }} @ {{ rip_nodelete_result.resource.address }}"
+          - "=========================================="
+
+    # -----------------------------------------------------------------------
+    # CLEANUP — always runs, even on failure, in reverse-creation order
+    # -----------------------------------------------------------------------
+
+    - name: "[cleanup] Delete rip-auto-renamed"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        id: "{{ rip_auto_result.resource.id }}"
+        name: "{{ rip_auto_renamed }}"
+        region: "{{ region }}"
+        state: absent
+      when: rip_auto_result.resource.id is defined
+      register: del_rip_auto
+
+    - name: "[cleanup] Delete rip-static"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        id: "{{ rip_static_result.resource.id }}"
+        name: "{{ rip_static_name }}"
+        region: "{{ region }}"
+        state: absent
+      when: rip_static_result.resource.id is defined
+      register: del_rip_static
+
+    - name: "[cleanup] Delete rip-nodelete"
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_result.resource.id }}"
+        id: "{{ rip_nodelete_result.resource.id }}"
+        name: "{{ rip_nodelete_name }}"
+        region: "{{ region }}"
+        state: absent
+      when: rip_nodelete_result.resource.id is defined
+      register: del_rip_nodelete
+
+    - name: "[cleanup] Delete subnet {{ subnet_name }}"
+      ibm.cloudcollection.ibm_is_subnet:
+        name: "{{ subnet_name }}"
+        id: "{{ subnet_result.resource.id }}"
+        region: "{{ region }}"
+        state: absent
+      when: subnet_result.resource.id is defined
+      register: del_subnet
+
+    - name: "[cleanup] Delete address prefix {{ prefix_name }}"
+      ibm.cloudcollection.ibm_is_address_prefix:
+        name: "{{ prefix_name }}"
+        id: "{{ prefix_result.resource.id }}"
+        vpc: "{{ vpc_result.resource.id }}"
+        region: "{{ region }}"
+        state: absent
+      when: prefix_result.resource.id is defined
+      register: del_prefix
+
+    - name: "[cleanup] Delete VPC {{ vpc_name }}"
+      ibm.cloudcollection.ibm_is_vpc:
+        name: "{{ vpc_name }}"
+        id: "{{ vpc_result.resource.id }}"
+        region: "{{ region }}"
+        state: absent
+      when: vpc_result.resource.id is defined
+      register: del_vpc
+
+    - name: "[cleanup] Confirm all resources deleted"
+      debug:
+        msg:
+          - "rip-auto deleted    : {{ del_rip_auto.changed | default('skipped') }}"
+          - "rip-static deleted  : {{ del_rip_static.changed | default('skipped') }}"
+          - "rip-nodelete deleted: {{ del_rip_nodelete.changed | default('skipped') }}"
+          - "subnet deleted      : {{ del_subnet.changed | default('skipped') }}"
+          - "prefix deleted      : {{ del_prefix.changed | default('skipped') }}"
+          - "VPC deleted         : {{ del_vpc.changed | default('skipped') }}"
