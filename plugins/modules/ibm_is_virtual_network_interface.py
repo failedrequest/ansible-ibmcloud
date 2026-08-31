@@ -42,6 +42,32 @@ options:
             - Enable Infrastructure Nat
         type: str
         required: false
+    primary_ip_id:
+        description:
+            - ID of an existing reserved IP to use as the primary IP.
+            - Mutually exclusive with primary_ip_address and primary_ip_name.
+            - Use this when the reserved IP was pre-created and must be bound by ID.
+        type: str
+        required: false
+    primary_ip_address:
+        description:
+            - IP address to assign as the primary IP (creates a new reserved IP).
+        type: str
+        required: false
+    primary_ip_name:
+        description:
+            - Name to assign to the primary reserved IP (creates a new reserved IP).
+        type: str
+        required: false
+    delete_wait_seconds:
+        description:
+            - How long (in seconds) to poll after issuing a DELETE before giving up.
+            - VNI DELETE is asynchronous (API returns 202); this ensures the resource
+              is fully removed before the module returns, so dependent subnet deletes
+              do not race.
+        type: int
+        required: false
+        default: 60
 author:
     - IBM Cloud Team
 '''
@@ -73,6 +99,8 @@ msg:
     returned: always
     type: str
 '''
+
+import time
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.ibm.cloudcollection.plugins.module_utils.ibm_cloud_sdk import (
@@ -113,6 +141,7 @@ class IBMVirtualNetworkInterfaceModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve virtual_network_interface {resource_id}")
+            return None
 
     def list_resources(self):
         """List all resources."""
@@ -121,6 +150,7 @@ class IBMVirtualNetworkInterfaceModule(IBMCloudSDKModule):
             return response.get_result().get('virtual_network_interfaces', [])
         except ApiException as e:
             self.handle_api_exception(e, "list virtual_network_interfaces")
+            return None
 
     def create_resource(self):
         """Create a new resource."""
@@ -134,11 +164,14 @@ class IBMVirtualNetworkInterfaceModule(IBMCloudSDKModule):
             }
 
             # Add primary IP configuration with reserved IP
+            reserved_ip_id      = self.params.get('primary_ip_id')
             reserved_ip_address = self.params.get('primary_ip_address')
-            reserved_ip_name = self.params.get('primary_ip_name')
+            reserved_ip_name    = self.params.get('primary_ip_name')
 
-            if reserved_ip_address or reserved_ip_name:
+            if reserved_ip_id or reserved_ip_address or reserved_ip_name:
                 primary_ip = {}
+                if reserved_ip_id:
+                    primary_ip['id'] = reserved_ip_id          # binds existing reserved IP by ID
                 if reserved_ip_address:
                     primary_ip['address'] = reserved_ip_address
                 if reserved_ip_name:
@@ -194,18 +227,38 @@ class IBMVirtualNetworkInterfaceModule(IBMCloudSDKModule):
         self.result['msg'] = f"virtual_network_interface {resource['name']} " + ("updated" if changed else "unchanged")
 
     def delete_resource(self, resource_id: str):
-        """Delete a resource."""
+        """Delete a VNI and poll until the async deletion completes."""
         self.check_mode_exit(changed=True, msg=f"Would delete virtual_network_interface: {resource_id}")
 
         try:
-            # Use the correct SDK method name (plural)
-            self.vpc_service.delete_virtual_network_interfaces(
-                id=resource_id
-            )
-            self.result['changed'] = True
-            self.result['msg'] = f"virtual_network_interface {resource_id} deleted successfully"
+            self.vpc_service.delete_virtual_network_interface(id=resource_id)   # singular, correct
         except ApiException as e:
+            if e.code == 404:
+                self.result['msg'] = f"virtual_network_interface {resource_id} already deleted"
+                return
             self.handle_api_exception(e, f"delete virtual_network_interface {resource_id}")
+
+        # Poll until the VNI is gone (API returns 202 async; subnet delete needs it fully gone)
+        wait_seconds = self.params.get('delete_wait_seconds', 60)
+        poll_interval = 5
+        elapsed = 0
+        while elapsed < wait_seconds:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            try:
+                self.vpc_service.get_virtual_network_interface(id=resource_id)
+                # Still exists — keep waiting
+            except ApiException as e:
+                if e.code == 404:
+                    break   # deletion confirmed
+                self.handle_api_exception(e, f"poll virtual_network_interface {resource_id}")
+        else:
+            self.fail_json(
+                msg=f"virtual_network_interface {resource_id} still exists after {wait_seconds}s wait"
+            )
+
+        self.result['changed'] = True
+        self.result['msg'] = f"virtual_network_interface {resource_id} deleted successfully"
 
     def run(self):
         """Execute the module logic."""
@@ -243,13 +296,19 @@ def main():
         'subnet': {'type': 'str', 'required': False},
         'security_groups': {'type': 'list', 'elements': 'str', 'required': False},
         'enable_infrastructure_nat': {'type': 'bool', 'required': False, 'default': True},
+        'primary_ip_id': {'type': 'str', 'required': False},
         'primary_ip_address': {'type': 'str', 'required': False},
-        'primary_ip_name': {'type': 'str', 'required': False}
+        'primary_ip_name': {'type': 'str', 'required': False},
+        'delete_wait_seconds': {'type': 'int', 'required': False, 'default': 60},
     })
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        supports_check_mode=True
+        supports_check_mode=True,
+        mutually_exclusive=[
+            ['primary_ip_id', 'primary_ip_address'],
+            ['primary_ip_id', 'primary_ip_name'],
+        ]
     )
 
     resource_module = IBMVirtualNetworkInterfaceModule(module)
