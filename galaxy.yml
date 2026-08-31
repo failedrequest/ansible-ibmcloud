@@ -39,9 +39,13 @@ build_ignore:
   - temp_reference
   - tools
   - tests
+  - test-venv
+  - test-venv-reserved-ip
+  - gap-fix-venv
   - '*.pyc'
   - '*.pyo'
   - __pycache__
   - .DS_Store
   - '*.swp'
   - '*.bak'
+  - 'ibm-cloudcollection-*.tar.gz'
