@@ -54,6 +54,17 @@ options:
               interface or an endpoint gateway IP)
         type: str
         required: false
+    owner:
+        description:
+            - When neither C(name) nor C(id) is given, filter the returned list
+              by owner type.
+            - C(user) — only reserved IPs created by the user (safe to bind to VNIs).
+            - C(provider) — only VPC-managed IPs (gateway, broadcast, etc.).
+            - Omit to return all reserved IPs.
+            - Only relevant in list mode (when name and id are both omitted).
+        type: str
+        required: false
+        choices: ['user', 'provider']
 author:
     - IBM Cloud Team
 '''
@@ -134,6 +145,11 @@ resource:
         target:
             description: The target this reserved IP is bound to
             type: dict
+resources:
+    description: List of reserved IP resources (returned in list mode when name and id are omitted)
+    returned: when name and id are both omitted
+    type: list
+    elements: dict
 changed:
     description: Whether the resource was changed
     returned: always
@@ -187,6 +203,7 @@ class IBMSubnetReservedIPModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve reserved IP {resource_id}")
+            return None
 
     def list_resources(self):
         """List all reserved IPs in the subnet."""
@@ -195,6 +212,7 @@ class IBMSubnetReservedIPModule(IBMCloudSDKModule):
             return response.get_result().get('reserved_ips', [])
         except ApiException as e:
             self.handle_api_exception(e, f"list reserved IPs in subnet {self.subnet_id}")
+            return None
 
     def create_resource(self):
         """Create a new reserved IP."""
@@ -287,6 +305,24 @@ class IBMSubnetReservedIPModule(IBMCloudSDKModule):
 
     def run(self):
         """Execute the module logic."""
+        owner_filter = self.params.get('owner')
+
+        # ── List mode ─────────────────────────────────────────────────────────
+        # When neither name nor id is given, return all reserved IPs in the
+        # subnet (optionally filtered by owner).  State is ignored in list mode.
+        if not self.resource_id and not self.resource_name:
+            all_rips = self.list_resources()
+            if owner_filter:
+                all_rips = [r for r in all_rips if r.get('owner') == owner_filter]
+            self.result['resources'] = all_rips
+            self.result['msg'] = (
+                f"Found {len(all_rips)} reserved IP(s) in subnet {self.subnet_id}"
+                + (f" (owner={owner_filter})" if owner_filter else "")
+            )
+            self.exit_json()
+            return
+
+        # ── Single-resource mode ───────────────────────────────────────────────
         existing_resource = None
 
         if self.resource_id:
@@ -323,12 +359,17 @@ def main():
         'address': {'type': 'str', 'required': False},
         'auto_delete': {'type': 'bool', 'required': False},
         'target': {'type': 'str', 'required': False},
+        'owner': {
+            'type': 'str',
+            'required': False,
+            'choices': ['user', 'provider'],
+            'default': None
+        },
     })
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        supports_check_mode=True,
-        required_one_of=[['name', 'id']]
+        supports_check_mode=True
     )
 
     resource_module = IBMSubnetReservedIPModule(module)

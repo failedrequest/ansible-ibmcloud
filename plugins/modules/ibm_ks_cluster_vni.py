@@ -235,9 +235,14 @@ class IBMKSClusterVNIModule:
     def _get_attached_vni_ids(self):
         """Return set of VNI IDs currently attached to the cluster."""
         cmd = f"ibmcloud ks vni ls --cluster-id {self.cluster} --output json"
-        rc, stdout, stderr = self.module.run_command(cmd)
+        rc, stdout, stderr = self._run_command(cmd, check_rc=False)
         if rc != 0:
-            self.module.fail_json(msg=f"Failed to list VNIs for cluster {self.cluster}: {stderr}")
+            self.module.fail_json(
+                msg=f"Failed to list VNIs for cluster {self.cluster}: {stderr}",
+                stdout=stdout,
+                stderr=stderr,
+                rc=rc
+            )
             return set()
         try:
             data = json.loads(stdout)
@@ -248,12 +253,17 @@ class IBMKSClusterVNIModule:
                     .get('edges', [])
             )
             return {
-                e['node']['virtualNetworkInterface']['externalID']
-                for e in edges
-                if e.get('node', {}).get('virtualNetworkInterface', {}).get('externalID')
+                edge['node']['virtualNetworkInterface']['externalID']
+                for edge in edges
+                if edge.get('node', {})
+                         .get('virtualNetworkInterface', {})
+                         .get('externalID')
             }
-        except (KeyError, ValueError) as e:
-            self.module.fail_json(msg=f"Failed to parse VNI list for cluster {self.cluster}: {e}")
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            self.module.fail_json(
+                msg=f"Failed to parse VNI list for cluster {self.cluster}: {exc}",
+                stdout=stdout
+            )
             return set()
 
     def _is_vni_attached(self):
@@ -287,7 +297,7 @@ class IBMKSClusterVNIModule:
             # Bare metal ROKS nodes require the baremetal subcommand and --vlan
             cmd = (
                 f"ibmcloud ks vni attach baremetal"
-                f" --cluster {self.cluster}"
+                f" --cluster-id {self.cluster}"
                 f" --vni {self.vni_id}"
                 f" --vlan {self.vlan}"
                 f" -q"
@@ -295,7 +305,7 @@ class IBMKSClusterVNIModule:
         else:
             cmd = (
                 f"ibmcloud ks vni attach"
-                f" --cluster {self.cluster}"
+                f" --cluster-id {self.cluster}"
                 f" --vni {self.vni_id}"
                 f" --subnet {self.vni_subnet_id}"
                 f" -q"
@@ -337,7 +347,7 @@ class IBMKSClusterVNIModule:
             return
 
         # Detach VNI — -f bypasses confirmation prompt in non-interactive mode
-        cmd = f"ibmcloud ks vni detach --cluster {self.cluster} --vni {self.vni_id} -f -q"
+        cmd = f"ibmcloud ks vni detach --cluster-id {self.cluster} --vni {self.vni_id} -f -q"
         rc, stdout, stderr = self._run_command(cmd, check_rc=False)
 
         if rc != 0:
