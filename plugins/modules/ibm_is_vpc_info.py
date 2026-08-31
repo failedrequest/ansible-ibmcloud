@@ -129,6 +129,8 @@ msg:
     type: str
 '''
 
+from urllib.parse import urlparse, parse_qs
+
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.ibm.cloudcollection.plugins.module_utils.ibm_cloud_sdk import (
     IBMCloudSDKModule,
@@ -168,28 +170,42 @@ class IBMVPCInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve VPC {resource_id}")
+            return None
+
+    def _paginate(self, list_fn, result_key, **kwargs):
+        """Fetch all pages from a VPC list endpoint."""
+        results = []
+        start = None
+        while True:
+            if start:
+                kwargs['start'] = start
+            response = list_fn(**kwargs)
+            page = response.get_result()
+            results.extend(page.get(result_key, []))
+            next_page = page.get('next')
+            if next_page:
+                start = parse_qs(urlparse(next_page['href']).query).get('start', [None])[0]
+            if not next_page or not start:
+                break
+        return results
 
     def get_resource_by_name(self, resource_name: str):
-        """Get VPC by name."""
+        """Get VPC by name using server-side name filter."""
         try:
-            response = self.vpc_service.list_vpcs()
-            vpcs = response.get_result().get('vpcs', [])
-
-            for vpc in vpcs:
-                if vpc.get('name') == resource_name:
-                    return vpc
-
-            return None
+            # SDK >= 0.33 supports name= as a server-side filter on list_vpcs
+            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs', name=resource_name)
+            return vpcs[0] if vpcs else None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {resource_name}")
+            return None
 
     def list_all_resources(self):
         """List all VPCs."""
         try:
-            response = self.vpc_service.list_vpcs()
-            return response.get_result().get('vpcs', [])
+            return self._paginate(self.vpc_service.list_vpcs, 'vpcs')
         except ApiException as e:
             self.handle_api_exception(e, "list VPCs")
+            return None
 
     def run(self):
         """Execute the module logic."""

@@ -138,6 +138,8 @@ msg:
     type: str
 '''
 
+from urllib.parse import urlparse, parse_qs
+
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.ibm.cloudcollection.plugins.module_utils.ibm_cloud_sdk import (
     IBMCloudSDKModule,
@@ -177,28 +179,58 @@ class IBMVirtualNetworkInterfaceInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve virtual network interface {resource_id}")
+            return None
+
+    def _paginate(self, list_fn, result_key, **kwargs):
+        """Fetch all pages from a VPC list endpoint."""
+        results = []
+        start = None
+        while True:
+            if start:
+                kwargs['start'] = start
+            response = list_fn(**kwargs)
+            page = response.get_result()
+            results.extend(page.get(result_key, []))
+            next_page = page.get('next')
+            if next_page:
+                start = parse_qs(urlparse(next_page['href']).query).get('start', [None])[0]
+            if not next_page or not start:
+                break
+        return results
 
     def get_resource_by_name(self, resource_name: str):
         """Get VNI by name."""
         try:
-            response = self.vpc_service.list_virtual_network_interfaces()
-            vnis = response.get_result().get('virtual_network_interfaces', [])
-
+            kwargs = {}
+            if self.resource_group_id:
+                kwargs['resource_group_id'] = self.resource_group_id
+            vnis = self._paginate(
+                self.vpc_service.list_virtual_network_interfaces,
+                'virtual_network_interfaces',
+                **kwargs
+            )
             for vni in vnis:
                 if vni.get('name') == resource_name:
                     return vni
-
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list virtual network interfaces to find {resource_name}")
+            return None
 
     def list_all_resources(self):
         """List all VNIs."""
         try:
-            response = self.vpc_service.list_virtual_network_interfaces()
-            return response.get_result().get('virtual_network_interfaces', [])
+            kwargs = {}
+            if self.resource_group_id:
+                kwargs['resource_group_id'] = self.resource_group_id
+            return self._paginate(
+                self.vpc_service.list_virtual_network_interfaces,
+                'virtual_network_interfaces',
+                **kwargs
+            )
         except ApiException as e:
             self.handle_api_exception(e, "list virtual network interfaces")
+            return None
 
     def run(self):
         """Execute the module logic."""

@@ -157,6 +157,8 @@ msg:
     type: str
 '''
 
+from urllib.parse import urlparse, parse_qs
+
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.ibm.cloudcollection.plugins.module_utils.ibm_cloud_sdk import (
     IBMCloudSDKModule,
@@ -197,48 +199,56 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve subnet {resource_id}")
+            return None
+
+    def _paginate(self, list_fn, result_key, **kwargs):
+        """Fetch all pages from a VPC list endpoint."""
+        results = []
+        start = None
+        while True:
+            if start:
+                kwargs['start'] = start
+            response = list_fn(**kwargs)
+            page = response.get_result()
+            results.extend(page.get(result_key, []))
+            next_page = page.get('next')
+            if next_page:
+                start = parse_qs(urlparse(next_page['href']).query).get('start', [None])[0]
+            if not next_page or not start:
+                break
+        return results
 
     def get_vpc_id_by_name(self, vpc_name: str):
         """Get VPC ID by name."""
         try:
-            response = self.vpc_service.list_vpcs()
-            vpcs = response.get_result().get('vpcs', [])
-
-            for vpc in vpcs:
-                if vpc.get('name') == vpc_name:
-                    return vpc.get('id')
-
-            return None
+            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs', name=vpc_name)
+            return vpcs[0].get('id') if vpcs else None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {vpc_name}")
+            return None
 
     def get_resource_by_name(self, resource_name: str):
         """Get subnet by name."""
         try:
-            response = self.vpc_service.list_subnets()
-            subnets = response.get_result().get('subnets', [])
-
+            subnets = self._paginate(self.vpc_service.list_subnets, 'subnets')
             for subnet in subnets:
                 if subnet.get('name') == resource_name:
                     return subnet
-
             return None
         except ApiException as e:
             self.handle_api_exception(e, f"list subnets to find {resource_name}")
+            return None
 
     def list_all_resources(self, vpc_id: str = None):
-        """List all subnets, optionally filtered by VPC."""
+        """List all subnets, optionally filtered by VPC (server-side)."""
         try:
-            response = self.vpc_service.list_subnets()
-            subnets = response.get_result().get('subnets', [])
-
-            # Filter by VPC if specified
+            kwargs = {}
             if vpc_id:
-                subnets = [s for s in subnets if s.get('vpc', {}).get('id') == vpc_id]
-
-            return subnets
+                kwargs['vpc_id'] = vpc_id      # server-side filter — no client-side loop needed
+            return self._paginate(self.vpc_service.list_subnets, 'subnets', **kwargs)
         except ApiException as e:
             self.handle_api_exception(e, "list subnets")
+            return None
 
     def run(self):
         """Execute the module logic."""

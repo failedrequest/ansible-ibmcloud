@@ -35,8 +35,15 @@ options:
     vni_subnet_id:
         description:
             - ID of the subnet where the VNI resides
-            - Required when attaching a VNI
+            - Required when attaching a VNI without --vlan (non-baremetal path)
         type: str
+        required: false
+    vlan:
+        description:
+            - VLAN ID to tag the attachment on bare metal ROKS nodes.
+            - Required for OVN-K Localnet secondary networks.
+            - Passed as --vlan to ibmcloud ks vni attach baremetal.
+        type: int
         required: false
     state:
         description:
@@ -61,11 +68,20 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: Attach VNI to ROKS cluster
+- name: Attach VNI to ROKS cluster (standard)
   ibm_ks_cluster_vni:
     cluster: my-roks-cluster
     vni_id: r006-12345678-1234-1234-1234-123456789abc
     vni_subnet_id: 0717-abcd1234-5678-90ab-cdef-1234567890ab
+    state: present
+
+- name: Attach VNI to bare metal ROKS cluster with VLAN tag
+  ibm_ks_cluster_vni:
+    cluster: my-roks-cluster
+    vni_id: r006-12345678-1234-1234-1234-123456789abc
+    vlan: 4001
+    ibmcloud_api_key: "{{ lookup('env', 'IBMCLOUD_API_KEY') }}"
+    region: us-south
     state: present
 
 - name: Detach VNI from ROKS cluster
@@ -73,15 +89,6 @@ EXAMPLES = r'''
     cluster: my-roks-cluster
     vni_id: r006-12345678-1234-1234-1234-123456789abc
     state: absent
-
-- name: Attach VNI with API key authentication
-  ibm_ks_cluster_vni:
-    cluster: my-roks-cluster
-    vni_id: r006-12345678-1234-1234-1234-123456789abc
-    vni_subnet_id: 0717-abcd1234-5678-90ab-cdef-1234567890ab
-    ibmcloud_api_key: "{{ lookup('env', 'IBMCLOUD_API_KEY') }}"
-    region: us-south
-    state: present
 '''
 
 RETURN = r'''
@@ -121,6 +128,7 @@ class IBMKSClusterVNIModule:
         self.cluster = module.params.get('cluster')
         self.vni_id = module.params.get('vni_id')
         self.vni_subnet_id = module.params.get('vni_subnet_id')
+        self.vlan = module.params.get('vlan')
         self.state = module.params.get('state')
         self.api_key = module.params.get('ibmcloud_api_key')
         self.region = module.params.get('region')
@@ -205,7 +213,10 @@ class IBMKSClusterVNIModule:
 
         if rc != 0:
             self.module.fail_json(
-                msg=f"Cluster '{self.cluster}' not found or not accessible. Please verify the cluster name with 'ibmcloud ks clusters'",
+                msg=(
+                    f"Cluster '{self.cluster}' not found or not accessible."
+                    " Please verify the cluster name with 'ibmcloud ks clusters'"
+                ),
                 stdout=stdout,
                 stderr=stderr,
                 rc=rc
@@ -219,51 +230,45 @@ class IBMKSClusterVNIModule:
                 msg=f"Failed to parse cluster information for '{self.cluster}'",
                 stdout=stdout
             )
-
-    def _get_cluster_vnis(self):
-        """Get list of VNIs attached to the cluster."""
-        cmd = f"ibmcloud ks cluster get --cluster {self.cluster} --output json"
-        rc, stdout, stderr = self._run_command(cmd, check_rc=False)
-
-        if rc != 0:
-            # Cluster might not exist or not accessible
             return None
 
+    def _get_attached_vni_ids(self):
+        """Return set of VNI IDs currently attached to the cluster."""
+        cmd = f"ibmcloud ks vni ls --cluster-id {self.cluster} --output json"
+        rc, stdout, stderr = self._run_command(cmd, check_rc=False)
+        if rc != 0:
+            self.module.fail_json(
+                msg=f"Failed to list VNIs for cluster {self.cluster}: {stderr}",
+                stdout=stdout,
+                stderr=stderr,
+                rc=rc
+            )
+            return set()
         try:
-            cluster_info = json.loads(stdout)
-            # VNIs might be in different fields depending on cluster version
-            # Try to find VNI information in the cluster details
-            vnis = []
-
-            # Check if there's a vnis field
-            if 'vnis' in cluster_info:
-                vnis = cluster_info.get('vnis', [])
-
-            # Check worker nodes for VNI attachments
-            if 'workers' in cluster_info:
-                for worker in cluster_info.get('workers', []):
-                    if 'networkInterfaces' in worker:
-                        for ni in worker.get('networkInterfaces', []):
-                            if ni.get('id') == self.vni_id:
-                                vnis.append(ni)
-
-            return vnis
-        except json.JSONDecodeError:
-            return []
+            data = json.loads(stdout)
+            edges = (
+                data.get('data', {})
+                    .get('node', {})
+                    .get('networkAttachments', {})
+                    .get('edges', [])
+            )
+            return {
+                edge['node']['virtualNetworkInterface']['externalID']
+                for edge in edges
+                if edge.get('node', {})
+                         .get('virtualNetworkInterface', {})
+                         .get('externalID')
+            }
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            self.module.fail_json(
+                msg=f"Failed to parse VNI list for cluster {self.cluster}: {exc}",
+                stdout=stdout
+            )
+            return set()
 
     def _is_vni_attached(self):
         """Check if VNI is already attached to the cluster."""
-        vnis = self._get_cluster_vnis()
-        if vnis is None:
-            return False
-
-        for vni in vnis:
-            if isinstance(vni, dict) and vni.get('id') == self.vni_id:
-                return True
-            elif isinstance(vni, str) and vni == self.vni_id:
-                return True
-
-        return False
+        return self.vni_id in self._get_attached_vni_ids()
 
     def attach_vni(self):
         """Attach VNI to the cluster."""
@@ -276,9 +281,9 @@ class IBMKSClusterVNIModule:
             return
 
         # Validate required parameters
-        if not self.vni_subnet_id:
+        if self.vlan is None and not self.vni_subnet_id:
             self.module.fail_json(
-                msg="vni_subnet_id is required when attaching a VNI"
+                msg="Either vlan (for baremetal) or vni_subnet_id (for standard) is required when attaching a VNI"
             )
 
         # Check mode
@@ -287,8 +292,25 @@ class IBMKSClusterVNIModule:
             self.result['msg'] = f"Would attach VNI {self.vni_id} to cluster {self.cluster}"
             return
 
-        # Attach VNI
-        cmd = f"ibmcloud ks vni attach --cluster {self.cluster} --vni {self.vni_id} --subnet {self.vni_subnet_id}"
+        # Build the attach command
+        if self.vlan is not None:
+            # Bare metal ROKS nodes require the baremetal subcommand and --vlan
+            cmd = (
+                f"ibmcloud ks vni attach baremetal"
+                f" --cluster-id {self.cluster}"
+                f" --vni {self.vni_id}"
+                f" --vlan {self.vlan}"
+                f" -q"
+            )
+        else:
+            cmd = (
+                f"ibmcloud ks vni attach"
+                f" --cluster-id {self.cluster}"
+                f" --vni {self.vni_id}"
+                f" --subnet {self.vni_subnet_id}"
+                f" -q"
+            )
+
         rc, stdout, stderr = self._run_command(cmd, check_rc=False)
 
         if rc != 0:
@@ -304,6 +326,7 @@ class IBMKSClusterVNIModule:
         self.result['vni_info'] = {
             'vni_id': self.vni_id,
             'subnet_id': self.vni_subnet_id,
+            'vlan': self.vlan,
             'cluster': self.cluster
         }
 
@@ -323,8 +346,8 @@ class IBMKSClusterVNIModule:
             self.result['msg'] = f"Would detach VNI {self.vni_id} from cluster {self.cluster}"
             return
 
-        # Detach VNI
-        cmd = f"ibmcloud ks vni detach --cluster {self.cluster} --vni {self.vni_id}"
+        # Detach VNI — -f bypasses confirmation prompt in non-interactive mode
+        cmd = f"ibmcloud ks vni detach --cluster-id {self.cluster} --vni {self.vni_id} -f -q"
         rc, stdout, stderr = self._run_command(cmd, check_rc=False)
 
         if rc != 0:
@@ -358,6 +381,7 @@ def main():
         'cluster': {'type': 'str', 'required': True},
         'vni_id': {'type': 'str', 'required': True},
         'vni_subnet_id': {'type': 'str', 'required': False},
+        'vlan': {'type': 'int', 'required': False},
         'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},
         'ibmcloud_api_key': {'type': 'str', 'required': False, 'no_log': True},
         'region': {'type': 'str', 'required': False}
@@ -365,10 +389,7 @@ def main():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        supports_check_mode=True,
-        required_if=[
-            ('state', 'present', ['vni_subnet_id'])
-        ]
+        supports_check_mode=True
     )
 
     resource_module = IBMKSClusterVNIModule(module)
