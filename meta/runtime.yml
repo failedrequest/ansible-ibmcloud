@@ -1,0 +1,86 @@
+---
+# Ansible collection runtime metadata
+# Declares action_groups so playbooks can use:
+#   module_defaults:
+#     group/ibm.cloudcollection.ibm:
+#       ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+#       region: us-south
+
+requires_ansible: ">=2.14"
+
+action_groups:
+  ibm:
+    - ibm_cos_bucket
+    - ibm_cr_namespace
+    - ibm_cr_retention_policy
+    - ibm_database_instance
+    - ibm_database_user
+    - ibm_en_destination
+    - ibm_en_subscription
+    - ibm_en_topic
+    - ibm_iam_access_group
+    - ibm_iam_access_group_rule
+    - ibm_iam_api_key
+    - ibm_iam_policy
+    - ibm_iam_service_id
+    - ibm_is_address_prefix
+    - ibm_is_backup_policy
+    - ibm_is_backup_policy_plan
+    - ibm_is_bare_metal_server
+    - ibm_is_bare_metal_server_network_interface
+    - ibm_is_dedicated_host
+    - ibm_is_dedicated_host_group
+    - ibm_is_endpoint_gateway
+    - ibm_is_floating_ip
+    - ibm_is_flow_log
+    - ibm_is_ike_policy
+    - ibm_is_image
+    - ibm_is_image_info
+    - ibm_is_instance
+    - ibm_is_instance_group
+    - ibm_is_instance_group_manager
+    - ibm_is_instance_template
+    - ibm_is_ipsec_policy
+    - ibm_is_lb_listener
+    - ibm_is_lb_pool
+    - ibm_is_lb_pool_member
+    - ibm_is_load_balancer
+    - ibm_is_network_acl
+    - ibm_is_network_interface
+    - ibm_is_placement_group
+    - ibm_is_public_gateway
+    - ibm_is_reservation
+    - ibm_is_route
+    - ibm_is_routing_table
+    - ibm_is_security_group
+    - ibm_is_security_group_rule
+    - ibm_is_share
+    - ibm_is_share_mount_target
+    - ibm_is_snapshot
+    - ibm_is_snapshot_consistency_group
+    - ibm_is_ssh_key
+    - ibm_is_subnet
+    - ibm_is_subnet_info
+    - ibm_is_subnet_reserved_ip
+    - ibm_is_subnet_reserved_ip_info
+    - ibm_is_virtual_network_interface
+    - ibm_is_virtual_network_interface_info
+    - ibm_is_volume
+    - ibm_is_vpc
+    - ibm_is_vpc_info
+    - ibm_is_vpn_gateway
+    - ibm_is_vpn_gateway_connection
+    - ibm_is_vpn_server
+    - ibm_kms_key
+    - ibm_kms_key_ring
+    - ibm_ks_cluster_vni
+    - ibm_resource_binding
+    - ibm_resource_group
+    - ibm_resource_instance
+    - ibm_resource_key
+    - ibm_sm_secret
+    - ibm_sm_secret_group
+    - ibm_tg_connection
+    - ibm_tg_connection_prefix_filter
+    - ibm_tg_gateway
+    - ibm_tg_route_report
