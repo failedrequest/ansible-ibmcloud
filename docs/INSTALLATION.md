@@ -1,505 +1,210 @@
-# Installation Guide
-
-Complete guide for installing and using the IBM Cloud Ansible Collection.
+# Installation Guide — IBM Cloud Ansible Collection v2.0.9
 
 ## Prerequisites
 
-- Python 3.10 or higher
-- Ansible Core 2.14 or higher
-- IBM Cloud account with API key
-- pip (Python package manager)
+| Requirement | Version |
+|-------------|---------|
+| Python | 3.10 or higher |
+| ansible-core | ≥ 2.14 |
+| pip | current |
+| IBM Cloud account | API key required |
 
-## Installation Methods
-
-### Method 1: Install from Pre-built Collection Tarball (Recommended)
-
-This is the simplest method for production use. The collection is distributed as a pre-built tarball (`ibm-cloudcollection-2.0.6.tar.gz`).
-
-#### Step 1: Install Python Dependencies
-
-```bash
-# Ensure Python 3.10+ is installed
-python3 --version
-
-# Install required Python packages
-pip install -r requirements.txt
-```
-
-The `requirements.txt` includes:
-- `ibm-cloud-sdk-core>=3.20.0` - Core IBM Cloud SDK
-- `ibm-vpc>=0.33.0` - VPC service SDK
-- `ibm-platform-services>=0.75.0` - Platform services SDK
-- `ibm-cloud-networking-services>=0.34.0` - Networking services SDK
-- `ansible-core>=2.14,<2.16` - Ansible core
-- `requests>=2.28.0` - HTTP library
-- `PyYAML>=6.0` - YAML parser
-
-#### Step 2: Install the Collection
-
-
-> **Note:** This collection uses version 2.x to avoid conflicts with the official IBM Cloud Ansible collection. The version bump ensures both collections can coexist if needed.
-
-```bash
-# Install the pre-built collection tarball
-ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz
-
-# Verify installation
-ansible-galaxy collection list | grep ibm
-```
-
-The collection will be installed to:
-- `~/.ansible/collections/ansible_collections/ibm/cloudcollection/` (default)
-- Or the path specified in `ANSIBLE_COLLECTIONS_PATHS`
-
-#### Step 3: Set IBM Cloud API Key
-
-```bash
-# Set your IBM Cloud API key
-export IC_API_KEY="your-api-key-here"
-
-# Verify it's set
-echo $IC_API_KEY
-```
-
-#### Step 4: Test the Installation
-
-```bash
-# Create a test playbook
-cat > test-collection.yml <<EOF
 ---
-- name: Test IBM Cloud Collection
-  hosts: localhost
-  collections:
-    - ibm.cloudcollection
-  
-  tasks:
-    - name: Display collection info
-      debug:
-        msg: "IBM Cloud collection is ready to use"
-EOF
 
-# Run the test playbook
-ansible-playbook test-collection.yml
-```
+## Install from the Pre-built Tarball
 
-### Method 2: Build and Install from Source
+This is the only installation method you need. The collection ships as a
+single self-contained tarball — no cloning, no building, no toolchain required.
 
-Use this method if you want to build the collection yourself or make modifications.
-
-#### Step 1: Clone the Repository
+### 1 — Install Python dependencies
 
 ```bash
-# Clone the repository
-git clone https://github.com/IBM/ansible-ibmcloud.git
-cd ansible-ibmcloud
+pip install \
+  "ibm-cloud-sdk-core>=3.20.0" \
+  "ibm-vpc>=0.33.0" \
+  "ibm-platform-services>=0.75.0" \
+  "ibm-cloud-networking-services>=0.34.0"
 ```
 
-#### Step 2: Install Python Dependencies
+### 2 — Install the collection
 
 ```bash
-# Install required Python packages
-pip install -r requirements.txt
+ansible-galaxy collection install ibm-cloudcollection-2.0.9.tar.gz
 ```
 
-#### Step 3: Build the Collection
+The collection installs to:
+```
+~/.ansible/collections/ansible_collections/ibm/cloudcollection/
+```
 
+**Upgrading from a previous version:**
 ```bash
-# Build the collection tarball
-ansible-galaxy collection build
-
-# This creates: ibm-cloudcollection-2.0.6.tar.gz
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.9.tar.gz
 ```
 
-The build process:
-1. Reads `galaxy.yml` for collection metadata
-2. Packages all modules from `plugins/modules/`
-3. Includes module utilities from `plugins/module_utils/`
-4. Bundles documentation from `docs/`
-5. Creates a compressed tarball
+### 3 — Set your IBM Cloud API key
 
-#### Step 4: Install the Built Collection
-
-```bash
-# Install the newly built collection
-ansible-galaxy collection install ibm-cloudcollection-2.0.6.tar.gz
-
-# Or force reinstall if already installed
-ansible-galaxy collection install --force ibm-cloudcollection-2.0.6.tar.gz
-```
-
-#### Step 5: Set IBM Cloud API Key
-
-```bash
-export IC_API_KEY="your-api-key-here"
-```
-
-### Method 3: Development Setup with Virtual Environment
-
-Use this method for active development and testing.
-
-#### Step 1: Clone and Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/IBM/ansible-ibmcloud.git
-cd ansible-ibmcloud
-
-# Run the setup script (creates virtual environment in build/venv)
-chmod +x setup.sh
-./setup.sh
-```
-
-The setup script:
-- Checks Python version (3.10+ required)
-- Creates a virtual environment in `build/venv/`
-- Installs all dependencies from `requirements.txt`
-- Sets up Ansible collection paths
-- Verifies the installation
-
-#### Step 2: Activate Virtual Environment
-
-```bash
-# Activate the virtual environment
-source build/venv/bin/activate
-
-# Your prompt should change to show (venv)
-```
-
-#### Step 3: Set IBM Cloud API Key
-
-```bash
-export IC_API_KEY="your-api-key-here"
-```
-
-#### Step 4: Test in Development Mode
-
-```bash
-# Run example playbooks
-ansible-playbook examples/create_vpc_infrastructure.yml --check
-
-# Test specific modules
-ansible-doc ibm.cloudcollection.ibm_is_vpc
-```
-
-### Method 4: Install from Ansible Galaxy (Future)
-
-Once published to Ansible Galaxy:
-
-```bash
-# Install from Ansible Galaxy
-ansible-galaxy collection install ibm.cloudcollection
-
-# Install specific version
-ansible-galaxy collection install ibm.cloudcollection:2.0.6
-```
-
-## Configuration
-
-### 1. Set IBM Cloud API Key
-
-**Option A: Environment Variable (Recommended)**
 ```bash
 export IC_API_KEY="your-ibm-cloud-api-key"
 ```
 
-**Option B: In Playbook**
-```yaml
-vars:
-  ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
-```
+Add this to your shell profile (`~/.zshrc`, `~/.bashrc`) to persist it.
 
-**Option C: Ansible Vault (Most Secure)**
-```bash
-# Create encrypted vault file
-ansible-vault create secrets.yml
-
-# Add your API key
-ibmcloud_api_key: your-ibm-cloud-api-key
-
-# Use in playbook
-ansible-playbook playbook.yml --ask-vault-pass
-```
-
-### 2. Configure Ansible
-
-Create or update `ansible.cfg`:
-
-```ini
-[defaults]
-collections_paths = ~/.ansible/collections:/usr/share/ansible/collections
-
-[inventory]
-enable_plugins = host_list, script, auto, yaml, ini, toml
-```
-
-### 3. Verify Installation
+### 4 — Verify the installation
 
 ```bash
-# List installed collections
-ansible-galaxy collection list
+# Confirm the collection is installed
+ansible-galaxy collection list | grep ibm
+# Expected: ibm.cloudcollection   2.0.9
 
-# Verify IBM Cloud collection
+# View a module's built-in documentation
 ansible-doc ibm.cloudcollection.ibm_is_vpc
 ```
 
-## Directory Structure After Installation
-
-```
-~/.ansible/collections/ansible_collections/ibm/cloudcollection/
-├── plugins/
-│   ├── modules/              # 67 Ansible modules
-│   │   ├── ibm_is_*.py      # VPC modules (42)
-│   │   ├── ibm_tg_*.py      # Transit Gateway (4)
-│   │   └── ibm_*.py         # Platform services (21)
-│   └── module_utils/
-│       └── ibm_cloud_sdk.py # Core SDK integration
-├── docs/                     # Documentation
-├── examples/                 # Example playbooks
-├── galaxy.yml               # Collection metadata
-└── README.md                # Collection README
-```
-
-## Python Dependencies
-
-The collection requires these Python packages:
-
-```
-ansible-core>=2.14.0
-ibm-vpc>=0.33.0
-ibm-platform-services>=0.50.0
-ibm-cloud-sdk-core>=3.20.0
-```
-
-### Install Dependencies Manually
-
-```bash
-pip install -r requirements.txt
-```
-
-
-
-## Usage in Playbooks
-
-### Basic Playbook Structure
-
-```yaml
 ---
-- name: IBM Cloud Infrastructure Management
-  hosts: localhost
-  connection: local
-  collections:
-    - ibm.cloudcollection
-  
-  vars:
+
+## Configuration
+
+### API Key — three options
+
+**Option A: Environment variable (recommended)**
+```bash
+export IC_API_KEY="your-ibm-cloud-api-key"
+```
+
+**Option B: `module_defaults` in your playbook (apply to every task at once)**
+```yaml
+module_defaults:
+  group/ibm.cloudcollection.ibm:
     ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
     region: us-south
-  
-  tasks:
-    - name: Create VPC
-      ibm_is_vpc:
-        name: production-vpc
-        region: "{{ region }}"
-        state: present
-      register: vpc
 ```
 
-### Using Fully Qualified Collection Names (FQCN)
+**Option C: Ansible Vault (most secure)**
+```bash
+# Create an encrypted secrets file
+ansible-vault create secrets.yml
+# Add inside: ibmcloud_api_key: your-ibm-cloud-api-key
 
-```yaml
-- name: Create VPC with FQCN
-  ibm.cloudcollection.ibm_is_vpc:
-    name: production-vpc
-    region: us-south
-    state: present
+# Reference it in your playbook
+vars_files:
+  - secrets.yml
+
+# Run with vault password prompt
+ansible-playbook playbook.yml --ask-vault-pass
 ```
 
-## Testing the Installation
+### ansible.cfg (optional)
 
-### 1. Create Test Playbook
+```ini
+[defaults]
+collections_paths = ~/.ansible/collections
+```
 
-Create `test-installation.yml`:
+---
+
+## First Playbook
+
+Save this as `test-install.yml` and run it to confirm everything works:
 
 ```yaml
 ---
-- name: Test IBM Cloud Collection
+- name: Verify IBM Cloud collection is ready
   hosts: localhost
-  connection: local
-  collections:
-    - ibm.cloudcollection
-  
+  gather_facts: false
+
+  module_defaults:
+    group/ibm.cloudcollection.ibm:
+      ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+      region: us-south
+
   tasks:
-    - name: Test module availability
-      debug:
-        msg: "IBM Cloud collection is installed and ready"
-    
-    - name: List available modules
-      command: ansible-doc -l ibm.cloudcollection
-      register: modules
-    
-    - name: Display modules
-      debug:
-        var: modules.stdout_lines
+    - name: List VPCs (check mode — no changes made)
+      ibm.cloudcollection.ibm_is_vpc_info:
+      register: vpcs
+      check_mode: false
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg: "Collection working — found {{ vpcs.resources | default([]) | length }} VPC(s)"
 ```
 
-### 2. Run Test Playbook
-
 ```bash
-ansible-playbook test-installation.yml
+ansible-playbook test-install.yml
 ```
 
-### 3. Test with Check Mode
-
-```bash
-# Create a simple VPC test
-cat > test-vpc.yml <<EOF
 ---
-- name: Test VPC Creation
-  hosts: localhost
-  collections:
-    - ibm.cloudcollection
-  
-  tasks:
-    - name: Create test VPC
-      ibm_is_vpc:
-        name: test-vpc
-        region: us-south
-        state: present
-      check_mode: yes
-EOF
-
-# Run in check mode (dry run)
-ansible-playbook test-vpc.yml --check
-```
 
 ## Troubleshooting
 
-### Collection Not Found
+### `could not resolve the module_defaults group ibm.cloudcollection.ibm`
 
+Your installed version is older than 2.0.9. Reinstall:
 ```bash
-# Check collection path
-ansible-config dump | grep COLLECTIONS_PATHS
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.9.tar.gz
+```
 
-# Verify installation
+### `ModuleNotFoundError: No module named 'ibm_vpc'`
+
+Python dependencies are missing:
+```bash
+pip install "ibm-vpc>=0.33.0" "ibm-cloud-sdk-core>=3.20.0"
+```
+
+### `ERROR! couldn't resolve module/action 'ibm.cloudcollection.ibm_is_vpc'`
+
+Collection is not installed or installed to a different Python environment:
+```bash
+# Check where ansible is running from
+which ansible-playbook
+
+# Check which collections it sees
 ansible-galaxy collection list | grep ibm
 
-# Reinstall if needed
-ansible-galaxy collection install --force .
+# Reinstall against the correct Python/pip
+ansible-galaxy collection install ibm-cloudcollection-2.0.9.tar.gz
 ```
 
-### Module Import Errors
+### Authentication errors (401 / missing API key)
 
 ```bash
-# Verify Python dependencies
-pip list | grep ibm
-
-# Install missing dependencies
-pip install -r requirements.txt
-
-# Check Python path
-python -c "import ibm_vpc; print(ibm_vpc.__version__)"
-```
-
-### Authentication Errors
-
-```bash
-# Verify API key is set
+# Verify the key is exported in the current shell
 echo $IC_API_KEY
 
-# Test API key
-curl -X GET \
-  "https://us-south.iaas.cloud.ibm.com/v1/vpcs?version=2024-01-01&generation=2" \
-  -H "Authorization: Bearer $(ibmcloud iam oauth-tokens --output json | jq -r .iam_token)"
+# Test the key directly
+curl -s -X GET \
+  "https://iam.cloud.ibm.com/identity/.well-known/openid-configuration" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['issuer'])"
 ```
 
-### Permission Errors
-
-```bash
-# Check file permissions
-ls -la ~/.ansible/collections/ansible_collections/ibm/cloudcollection/
-
-# Fix permissions if needed
-chmod -R 755 ~/.ansible/collections/ansible_collections/ibm/cloudcollection/
-```
+---
 
 ## Upgrading
 
-### Upgrade from Source
-
 ```bash
-cd ansible-ibmcloud
-git pull origin main
-./setup.sh
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.9.tar.gz
 ```
 
-### Upgrade Collection
+## Uninstalling
 
 ```bash
-# Rebuild and reinstall
-ansible-galaxy collection build --force
-ansible-galaxy collection install --force ibm-cloudcollection-2.0.6.tar.gz
-```
-
-## Uninstallation
-
-### Remove Collection
-
-```bash
-# Remove from default location
 rm -rf ~/.ansible/collections/ansible_collections/ibm/cloudcollection
-
-# Or use ansible-galaxy (if supported)
-ansible-galaxy collection remove ibm.cloudcollection
 ```
 
-### Remove Python Dependencies
+---
 
-```bash
-pip uninstall ibm-vpc ibm-platform-services ibm-cloud-sdk-core
-```
+## Environment Variables Reference
 
-## Development Setup
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `IC_API_KEY` | IBM Cloud API key | Yes (unless passed inline) |
+| `ANSIBLE_COLLECTIONS_PATHS` | Override collection search path | No |
 
-For contributing or development:
-
-```bash
-# Clone repository
-git clone https://github.com/IBM/ansible-ibmcloud.git
-cd ansible-ibmcloud
-
-# Install in development mode
-pip install -e .
-
-
-
-# Run tests
-pytest tests/
-
-# Generate modules
-python tools/generate_modules.py
-```
-
-## Environment Variables
-
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `IC_API_KEY` | IBM Cloud API key | Yes | None |
-| `IC_REGION` | Default IBM Cloud region | No | us-south |
-| `ANSIBLE_COLLECTIONS_PATHS` | Collection search paths | No | ~/.ansible/collections |
+---
 
 ## Next Steps
 
-1. **Read Documentation**: Check [docs/](../docs/) for module references
-2. **Try Examples**: Run playbooks from [examples/](../examples/)
-3. **View HTML Docs**: Open [docs/html/index.html](../docs/html/index.html)
-4. **Join Community**: Report issues on GitHub
-
-## Support
-
-- **Documentation**: [docs/](../docs/)
-- **Examples**: [examples/](../examples/)
-- **Issues**: GitHub Issues
-- **IBM Cloud Docs**: https://cloud.ibm.com/docs
-
-## License
-
-BSD 2-Clause License
+- **[Quick Start](QUICK_START.md)** — First real playbook in 5 minutes
+- **[Getting Started](GETTING_STARTED.md)** — Common patterns and examples
+- **[Module Reference](MODULE_REFERENCE.md)** — Full module documentation
+- **Examples**: see the `examples/` directory in the collection
