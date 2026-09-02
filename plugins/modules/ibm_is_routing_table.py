@@ -7,65 +7,95 @@
 DOCUMENTATION = r'''
 ---
 module: ibm_is_routing_table
-short_description: Manage IBM Cloud Routing Table
+short_description: Manage IBM Cloud VPC Routing Tables
 version_added: "1.0.0"
 description:
-    - Create, update, or delete IBM Cloud Routing Table
+    - Create, update, or delete a routing table within an IBM Cloud VPC
     - This module uses the native IBM Cloud Python SDK (no Terraform dependency)
     - Supports idempotent operations
 requirements:
     - ibm-vpc >= 0.33.0
     - ibm-cloud-sdk-core >= 3.20.0
 options:
-    name:
+    vpc_id:
         description:
-            - Name of the resource
+            - ID of the VPC that owns this routing table
+            - Required for all operations
         type: str
         required: true
+    name:
+        description:
+            - Name of the routing table
+            - Used to look up an existing routing table when id is not provided
+        type: str
+        required: false
     id:
         description:
-            - ID of the resource
+            - ID of the routing table
+            - When provided, the module operates directly on this resource
         type: str
         required: false
     route_direct_link_ingress:
         description:
-            - Route Direct Link Ingress
-        type: str
+            - Whether this routing table is used to route traffic that originates
+              from Direct Link to this VPC
+        type: bool
         required: false
     route_transit_gateway_ingress:
         description:
-            - Route Transit Gateway Ingress
-        type: str
+            - Whether this routing table is used to route traffic that originates
+              from Transit Gateway to this VPC
+        type: bool
         required: false
     route_vpc_zone_ingress:
         description:
-            - Route Vpc Zone Ingress
-        type: str
+            - Whether this routing table is used to route traffic that originates
+              from subnets in other zones in this VPC
+        type: bool
         required: false
 author:
     - IBM Cloud Team
 '''
 
 EXAMPLES = r'''
-- name: Create Routing Table
+- name: Create a custom routing table in a VPC
   ibm_is_routing_table:
-    name: my-routing_table
+    vpc_id: "r006-12345678-1234-1234-1234-123456789012"
+    name: my-custom-rt
     state: present
+  register: rt
 
-- name: Delete Routing Table
+- name: Delete a routing table by ID
   ibm_is_routing_table:
-    id: resource-id-123
+    vpc_id: "r006-12345678-1234-1234-1234-123456789012"
+    id: "{{ rt.resource.id }}"
     state: absent
-
 '''
 
 RETURN = r'''
 resource:
-    description: Routing Table information
-    returned: always
+    description: Routing table resource information
+    returned: when state is present
     type: dict
+    contains:
+        id:
+            description: Routing table ID
+            type: str
+        name:
+            description: Routing table name
+            type: str
+        is_default:
+            description: Whether this is the VPC default routing table
+            type: bool
+        lifecycle_state:
+            description: Lifecycle state of the routing table
+            type: str
 changed:
     description: Whether the resource was changed
+    returned: always
+    type: bool
+found:
+    description: Whether the resource was found
     returned: always
     type: bool
 msg:
@@ -89,10 +119,9 @@ except ImportError:
 
 
 class IBMRoutingTableModule(IBMCloudSDKModule):
-    """IBM Cloud Routing Table module implementation."""
+    """IBM Cloud VPC Routing Table module implementation."""
 
     def __init__(self, module):
-        """Initialize the module."""
         super().__init__(module)
 
         if not HAS_IBM_VPC:
@@ -101,49 +130,58 @@ class IBMRoutingTableModule(IBMCloudSDKModule):
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
         self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
 
+        self.vpc_id = self.params.get('vpc_id')
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
 
     def get_resource(self, resource_id: str):
-        """Get resource by ID."""
+        """Get routing table by ID."""
         try:
-            response = self.vpc_service.get_vpc_routing_table(id=resource_id)
+            response = self.vpc_service.get_vpc_routing_table(
+                vpc_id=self.vpc_id,
+                id=resource_id
+            )
             return response.get_result()
         except ApiException as e:
             if e.code == 404:
                 return None
             self.handle_api_exception(e, f"retrieve routing_table {resource_id}")
+            return None
 
     def list_resources(self):
-        """List all resources."""
+        """List all routing tables for this VPC."""
         try:
-            response = self.vpc_service.list_vpc_routing_tables()
+            response = self.vpc_service.list_vpc_routing_tables(vpc_id=self.vpc_id)
             return response.get_result().get('routing_tables', [])
         except ApiException as e:
             self.handle_api_exception(e, "list routing_tables")
+            return None
 
     def create_resource(self):
-        """Create a new resource."""
+        """Create a new routing table."""
         self.check_mode_exit(changed=True, msg=f"Would create routing_table: {self.resource_name}")
 
+        kwargs = {'vpc_id': self.vpc_id}
+        if self.resource_name:
+            kwargs['name'] = self.resource_name
+
+        for param in ('route_direct_link_ingress', 'route_transit_gateway_ingress', 'route_vpc_zone_ingress'):
+            val = self.params.get(param)
+            if val is not None:
+                kwargs[param] = val
+
         try:
-            prototype = {
-            'name': self.resource_name,
-            'name': self.params.get('name')
-        }
-
-            response = self.vpc_service.create_vpc_routing_table(**prototype)
+            response = self.vpc_service.create_vpc_routing_table(**kwargs)
             resource = response.get_result()
-
             self.result['changed'] = True
+            self.result['found'] = True
             self.result['resource'] = resource
             self.result['msg'] = f"routing_table {self.resource_name} created successfully"
-
         except ApiException as e:
             self.handle_api_exception(e, f"create routing_table {self.resource_name}")
 
     def update_resource(self, resource):
-        """Update an existing resource."""
+        """Update an existing routing table."""
         changed = False
         updates = {}
 
@@ -153,40 +191,45 @@ class IBMRoutingTableModule(IBMCloudSDKModule):
 
         if updates:
             self.check_mode_exit(changed=True, msg=f"Would update routing_table: {resource['id']}")
-
             try:
                 response = self.vpc_service.update_vpc_routing_table(
+                    vpc_id=self.vpc_id,
                     id=resource['id'],
                     routing_table_patch=updates
                 )
                 resource = response.get_result()
-                changed = True
             except ApiException as e:
                 self.handle_api_exception(e, f"update routing_table {resource['id']}")
 
         self.result['changed'] = changed
+        self.result['found'] = True
         self.result['resource'] = resource
         self.result['msg'] = f"routing_table {resource['name']} " + ("updated" if changed else "unchanged")
 
     def delete_resource(self, resource_id: str):
-        """Delete a resource."""
+        """Delete a routing table."""
         self.check_mode_exit(changed=True, msg=f"Would delete routing_table: {resource_id}")
-
         try:
-            self.vpc_service.delete_vpc_routing_table(id=resource_id)
+            self.vpc_service.delete_vpc_routing_table(vpc_id=self.vpc_id, id=resource_id)
             self.result['changed'] = True
             self.result['msg'] = f"routing_table {resource_id} deleted successfully"
         except ApiException as e:
+            if e.code == 404:
+                self.result['msg'] = f"routing_table {resource_id} already deleted"
+                return
             self.handle_api_exception(e, f"delete routing_table {resource_id}")
 
     def run(self):
         """Execute the module logic."""
+        if not self.vpc_id:
+            self.fail_json(msg="vpc_id is required")
+
         existing_resource = None
         if self.resource_id:
             existing_resource = self.get_resource(self.resource_id)
         elif self.resource_name:
             resources = self.list_resources()
-            for res in resources:
+            for res in (resources or []):
                 if res.get('name') == self.resource_name:
                     existing_resource = res
                     break
@@ -196,7 +239,6 @@ class IBMRoutingTableModule(IBMCloudSDKModule):
                 self.update_resource(existing_resource)
             else:
                 self.create_resource()
-
         elif self.state == 'absent':
             if existing_resource:
                 self.delete_resource(existing_resource['id'])
@@ -210,16 +252,18 @@ def main():
     """Main module execution."""
     argument_spec = get_common_argument_spec()
     argument_spec.update({
-        'name': {'type': 'str', 'required': True},
+        'vpc_id': {'type': 'str', 'required': True},
+        'name': {'type': 'str', 'required': False},
         'id': {'type': 'str', 'required': False},
-        'route_direct_link_ingress': {'type': 'str', 'required': False},
-        'route_transit_gateway_ingress': {'type': 'str', 'required': False},
-        'route_vpc_zone_ingress': {'type': 'str', 'required': False}
+        'route_direct_link_ingress': {'type': 'bool', 'required': False},
+        'route_transit_gateway_ingress': {'type': 'bool', 'required': False},
+        'route_vpc_zone_ingress': {'type': 'bool', 'required': False},
     })
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        supports_check_mode=True
+        supports_check_mode=True,
+        required_one_of=[['name', 'id']]
     )
 
     resource_module = IBMRoutingTableModule(module)
