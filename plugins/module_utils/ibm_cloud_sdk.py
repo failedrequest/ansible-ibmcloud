@@ -89,11 +89,14 @@ class IBMCloudSDKModule:
         self.resource_group_id = self.params.get('resource_group')
         self.state = self.params.get('state', 'present')
 
-        # Result dictionary
+        # Result dictionary — 'found' is seeded False so that playbook
+        # `failed_when: not result.found` guards are always safe, even if
+        # the module exits via fail_json before run() can set it explicitly.
         self.result = {
             'changed': False,
             'resource': {},
-            'msg': ''
+            'msg':     '',
+            'found':   False,
         }
 
     def handle_api_exception(self, e: ApiException, operation: str = "operation") -> None:

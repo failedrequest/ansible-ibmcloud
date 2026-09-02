@@ -1,0 +1,182 @@
+---
+# ============================================================
+# vars.yml — DR-Load Localnet VM provisioning
+#
+# Architecture: OVN-K Localnet (Secondary network)
+#   - One VPC subnet  → one VNI per VM NIC → cluster attached
+#   - One Localnet CUDN per vm_type (web / app / db)
+#   - VMs in a single namespace; static IPs via cloud-init networkData
+#
+# Three playbooks consume this file:
+#   1. net-cloud.yml      — VPC prefix, subnet, reserved IPs, VNIs
+#   2. net-openshift.yml  — VNI cluster attach, namespace, CUDNs
+#   3. vm-creation.yml    — KubeVirt VMs (Linux cloud-init / Windows sysprep)
+#
+# Usage:
+#   ansible-playbook net-cloud.yml
+#   ansible-playbook net-openshift.yml
+#   ansible-playbook vm-creation.yml
+#   ansible-playbook vm-creation.yml -e vm_count=3
+# ============================================================
+
+# ============================================================
+# OpenShift / Kubernetes connection
+# ============================================================
+validate_certs: false
+
+# ============================================================
+# IBM Cloud authentication
+#   export IC_API_KEY="<your-key>"
+# ============================================================
+ibmcloud_api_key: "{{ lookup('ansible.builtin.env', 'IC_API_KEY') }}"
+ibmcloud_region: eu-de
+ibmcloud_resource_group: Default
+
+# ============================================================
+# VPC — must be the same VPC the ROKS cluster belongs to
+# ============================================================
+vpc_name: dr-test
+# vpc_default_security_group_id is resolved dynamically from the VPC
+# in net-cloud.yml — no need to hardcode it here.
+
+# ============================================================
+# ROKS cluster
+# ============================================================
+cluster_name: d9qf2ibf04n1qgrffkvg
+
+# ============================================================
+# OVN-K Localnet physical network name
+# Must match the OVS bridge mapping on the worker nodes.
+# ============================================================
+localnet_physical_network: vpc-vlans
+
+# ============================================================
+# Target namespace — all VM types land here
+# ============================================================
+vm_namespace: fahad
+
+# ============================================================
+# VM name prefix — results in  <prefix>-<type>-<NN>
+# e.g. dt-web-01, dt-app-02, dt-db-03
+# ============================================================
+vm_prefix: f1
+
+# ============================================================
+# IBM Cloud DNS resolvers (injected into Linux cloud-init networkData)
+# ============================================================
+dns_servers:
+  - 161.26.0.7
+  - 161.26.0.8
+
+# ============================================================
+# How many VMs to create per type (all types share this count).
+# Override at runtime:
+#   ansible-playbook vm-creation.yml -e vm_count=3
+# ============================================================
+vm_count: 1
+
+# ============================================================
+# VM credentials — sourced from environment variables.
+#   export USER_SSH_KEY="ssh-ed25519 AAAA..."
+#   export VM_PASSWORD="changeme123!"
+# ============================================================
+vm_ssh_key1: "{{ lookup('ansible.builtin.env', 'USER_SSH_KEY') }}"
+vm_password: "{{ lookup('ansible.builtin.env', 'VM_PASSWORD') }}"
+
+# ============================================================
+# OS image source namespace (same for all DataSources)
+# ============================================================
+os_image_namespace: openshift-virtualization-os-images
+
+# ============================================================
+# Disk sizes and StorageClass
+# ============================================================
+boot_disk_size: "250Gi"
+data_disk_size: "500Gi"
+storage_class: "ocs-storagecluster-ceph-rbd-virtualization-no-schedule"
+#storage_class: "ocs-storagecluster-ceph-rbd-virtualization"
+
+# ============================================================
+# ACM DR label — applied to every VM and PVC.
+# ============================================================
+dr_backup_label:
+  ramendr.ramencontroller.openshift.io/backup: required
+
+# ============================================================
+# VPC Address Prefix
+# One prefix for the DR-Load subnet block.
+# ============================================================
+vpc_prefix:
+  name: fahad-f1-vms
+  cidr: "10.18.20.0/24"
+  zone: eu-de-1
+
+# ============================================================
+# VM types
+#
+# Each entry drives one tier of VMs.  vm_count VMs are created
+# per type, numbered 01..N.
+#
+# Required fields:
+#   name          short label — used in VM/hostname names
+#   vlan          VLAN ID for the Localnet CUDN and VNI attachment
+#   subnet_cidr   CIDR carved from vpc_prefix.cidr for this type
+#   ip_start      first VM static IP in subnet_cidr
+#   gateway       first host in subnet_cidr (VPC router)
+#   prefix_len    subnet prefix length (string)
+#   os_image      DataSource name in os_image_namespace
+#   cpu_cores / cpu_sockets / cpu_threads / memory
+#   extra_disks   blank data volumes in addition to boot disk
+#
+# Optional fields:
+#   windows: true    switches to sata bus + sysprep (no cloud-init)
+#   labels           arbitrary k/v applied to VM and every PVC
+# ============================================================
+vm_types:
+
+  - name: web
+    vlan: 210
+    subnet_cidr: "10.18.20.0/27"
+    ip_start: "10.18.20.10"
+    gateway: "10.18.20.1"
+    prefix_len: "27"
+    os_image: centos-stream9
+    cpu_cores: 2
+    cpu_sockets: 1
+    cpu_threads: 1
+    memory: "4Gi"
+    extra_disks: 0
+    labels:
+      function: web
+
+  - name: app
+    vlan: 211
+    subnet_cidr: "10.18.20.32/27"
+    ip_start: "10.18.20.42"
+    gateway: "10.18.20.33"
+    prefix_len: "27"
+    os_image: centos-stream9
+    cpu_cores: 4
+    cpu_sockets: 1
+    cpu_threads: 1
+    memory: "8Gi"
+    extra_disks: 2
+    labels:
+      function: app
+
+  - name: db
+    vlan: 212
+    subnet_cidr: "10.18.20.64/27"
+    ip_start: "10.18.20.74"
+    gateway: "10.18.20.65"
+    prefix_len: "27"
+    #os_image: win2k25
+    os_image: centos-stream9
+    #windows: true
+    cpu_cores: 4
+    cpu_sockets: 2
+    cpu_threads: 1
+    memory: "16Gi"
+    extra_disks: 3
+    labels:
+      function: db
