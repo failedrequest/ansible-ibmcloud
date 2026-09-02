@@ -231,7 +231,7 @@ class IBMVirtualNetworkInterfaceModule(IBMCloudSDKModule):
         self.check_mode_exit(changed=True, msg=f"Would delete virtual_network_interface: {resource_id}")
 
         try:
-            self.vpc_service.delete_virtual_network_interface(id=resource_id)   # singular, correct
+            self.vpc_service.delete_virtual_network_interfaces(id=resource_id)  # plural — SDK 0.35 method name
         except ApiException as e:
             if e.code == 404:
                 self.result['msg'] = f"virtual_network_interface {resource_id} already deleted"
