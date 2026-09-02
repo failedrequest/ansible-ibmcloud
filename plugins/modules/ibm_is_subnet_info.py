@@ -219,10 +219,13 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
         return results
 
     def get_vpc_id_by_name(self, vpc_name: str):
-        """Get VPC ID by name."""
+        """Get VPC ID by name (client-side filter — list_vpcs has no name= param in SDK 0.35)."""
         try:
-            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs', name=vpc_name)
-            return vpcs[0].get('id') if vpcs else None
+            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs')
+            for vpc in vpcs:
+                if vpc.get('name') == vpc_name:
+                    return vpc.get('id')
+            return None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {vpc_name}")
             return None

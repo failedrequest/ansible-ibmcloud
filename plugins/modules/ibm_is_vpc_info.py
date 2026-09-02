@@ -190,11 +190,13 @@ class IBMVPCInfoModule(IBMCloudSDKModule):
         return results
 
     def get_resource_by_name(self, resource_name: str):
-        """Get VPC by name using server-side name filter."""
+        """Get VPC by name (client-side filter — list_vpcs has no name= param in SDK 0.35)."""
         try:
-            # SDK >= 0.33 supports name= as a server-side filter on list_vpcs
-            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs', name=resource_name)
-            return vpcs[0] if vpcs else None
+            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs')
+            for vpc in vpcs:
+                if vpc.get('name') == resource_name:
+                    return vpc
+            return None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {resource_name}")
             return None

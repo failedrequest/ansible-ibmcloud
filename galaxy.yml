@@ -1,7 +1,7 @@
 ---
 namespace: ibm
 name: cloudcollection
-version: 2.0.10
+version: 2.0.11
 readme: README.md
 authors:
   - Mark Saad 
@@ -42,6 +42,7 @@ build_ignore:
   - test-venv
   - test-venv-reserved-ip
   - gap-fix-venv
+  - test-test
   - '*.pyc'
   - '*.pyo'
   - __pycache__
