@@ -211,11 +211,27 @@ ansible-galaxy collection list | grep ibm
 echo $IC_API_KEY   # must be non-empty
 ```
 
+If running against `test.cloud.ibm.com`, see
+[Troubleshooting: test.cloud.ibm.com](troubleshooting-api-key-old-venv.md).
+
 ### `module_defaults group` error
 You have a version older than 2.0.9 installed. Upgrade:
 ```bash
-ansible-galaxy collection install --force ibm-cloudcollection-2.0.9.tar.gz
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.17.tar.gz
 ```
+
+### Non-production / staging environment
+
+Set the IBM Cloud CLI endpoint variables before running the playbook:
+
+```bash
+export IBMCLOUD_IAM_API_ENDPOINT=https://iam.test.cloud.ibm.com
+export IBMCLOUD_IS_NG_API_ENDPOINT=https://us-south-stage01.iaasdev.cloud.ibm.com/v1
+```
+
+No playbook changes required. See
+[Troubleshooting: test.cloud.ibm.com](troubleshooting-api-key-old-venv.md) for
+details.
 
 ---
 

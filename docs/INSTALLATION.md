@@ -198,7 +198,28 @@ rm -rf ~/.ansible/collections/ansible_collections/ibm/cloudcollection
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `IC_API_KEY` | IBM Cloud API key | Yes (unless passed inline) |
+| `IBMCLOUD_API_KEY` | Alternate name for IBM Cloud API key | No |
+| `IBMCLOUD_IAM_API_ENDPOINT` | Override IAM token endpoint (e.g. for `test.cloud.ibm.com`) | No |
+| `IC_IAM_TOKEN_URL` | Alternate name for IAM endpoint override | No |
+| `IBMCLOUD_IS_NG_API_ENDPOINT` | Override VPC/IS API endpoint (IBM Cloud CLI standard) | No |
+| `IBMCLOUD_VPC_URL` / `IC_VPC_URL` | Alternate names for VPC endpoint override | No |
 | `ANSIBLE_COLLECTIONS_PATHS` | Override collection search path | No |
+
+### Using a Non-Production Environment (test.cloud.ibm.com)
+
+The collection reads the same endpoint variables that the IBM Cloud CLI sets.
+No playbook changes are needed — set the variables before running:
+
+```bash
+export IC_API_KEY="<your-test-environment-api-key>"
+export IBMCLOUD_IAM_API_ENDPOINT=https://iam.test.cloud.ibm.com
+export IBMCLOUD_IS_NG_API_ENDPOINT=https://us-south-stage01.iaasdev.cloud.ibm.com/v1
+
+ansible-playbook -e@vars.yml playbook.yml
+```
+
+See [Troubleshooting: test.cloud.ibm.com](troubleshooting-api-key-old-venv.md) for
+error reference and version history.
 
 ---
 
