@@ -1,0 +1,139 @@
+---
+# ============================================================
+# new-vars.yml — DR-Load Localnet VM provisioning
+#
+# Identical to fa-vars.yml except vpc_name points to the
+# newly created VPC: test-new-vpc
+# ============================================================
+
+# ============================================================
+# OpenShift / Kubernetes connection
+# ============================================================
+validate_certs: false
+
+# ============================================================
+# IBM Cloud authentication
+#   export IC_API_KEY="<your-key>"
+# ============================================================
+ibmcloud_api_key: "{{ lookup('ansible.builtin.env', 'IC_API_KEY') }}"
+ibmcloud_region: eu-de
+ibmcloud_resource_group: Default
+
+# ============================================================
+# VPC — newly created VPC for cleanup testing
+# ============================================================
+vpc_name: test-new-vpc
+
+# ============================================================
+# ROKS cluster
+# ============================================================
+cluster_name: d9qf2ibf04n1qgrffkvg
+
+# ============================================================
+# OVN-K Localnet physical network name
+# ============================================================
+localnet_physical_network: vpc-vlans
+
+# ============================================================
+# Target namespace
+# ============================================================
+vm_namespace: fahad
+
+# ============================================================
+# VM name prefix
+# ============================================================
+vm_prefix: f1
+
+# ============================================================
+# IBM Cloud DNS resolvers
+# ============================================================
+dns_servers:
+  - 161.26.0.7
+  - 161.26.0.8
+
+# ============================================================
+# VM count
+# ============================================================
+vm_count: 1
+
+# ============================================================
+# VM credentials
+# ============================================================
+vm_ssh_key1: "{{ lookup('ansible.builtin.env', 'USER_SSH_KEY') }}"
+vm_password: "{{ lookup('ansible.builtin.env', 'VM_PASSWORD') }}"
+
+# ============================================================
+# OS image source namespace
+# ============================================================
+os_image_namespace: openshift-virtualization-os-images
+
+# ============================================================
+# Disk sizes and StorageClass
+# ============================================================
+boot_disk_size: "250Gi"
+data_disk_size: "500Gi"
+storage_class: "ocs-storagecluster-ceph-rbd-virtualization-no-schedule"
+
+# ============================================================
+# ACM DR label
+# ============================================================
+dr_backup_label:
+  ramendr.ramencontroller.openshift.io/backup: required
+
+# ============================================================
+# VPC Address Prefix
+# ============================================================
+vpc_prefix:
+  name: fahad-f1-vms
+  cidr: "10.18.20.0/24"
+  zone: eu-de-1
+
+# ============================================================
+# VM types
+# ============================================================
+vm_types:
+
+  - name: web
+    vlan: 210
+    subnet_cidr: "10.18.20.0/27"
+    ip_start: "10.18.20.10"
+    gateway: "10.18.20.1"
+    prefix_len: "27"
+    os_image: centos-stream9
+    cpu_cores: 2
+    cpu_sockets: 1
+    cpu_threads: 1
+    memory: "4Gi"
+    extra_disks: 0
+    labels:
+      function: web
+
+  - name: app
+    vlan: 211
+    subnet_cidr: "10.18.20.32/27"
+    ip_start: "10.18.20.42"
+    gateway: "10.18.20.33"
+    prefix_len: "27"
+    os_image: centos-stream9
+    cpu_cores: 4
+    cpu_sockets: 1
+    cpu_threads: 1
+    memory: "8Gi"
+    extra_disks: 2
+    labels:
+      function: app
+
+  - name: db
+    vlan: 212
+    subnet_cidr: "10.18.20.64/27"
+    ip_start: "10.18.20.74"
+    gateway: "10.18.20.65"
+    prefix_len: "27"
+    os_image: centos-stream9
+    cpu_cores: 4
+    cpu_sockets: 2
+    cpu_threads: 1
+    memory: "16Gi"
+    extra_disks: 3
+    labels:
+      function: db

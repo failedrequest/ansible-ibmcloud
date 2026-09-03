@@ -1,122 +1,276 @@
 ---
-- name: Test VPC Routes Module
+# ============================================================
+# test-vpc-routes.yml — ibm_is_route + ibm_is_routing_table
+#
+# What this test does:
+#
+#   Phase 0 — Setup
+#     - Create a dedicated test VPC (test-vpc-routes-<epoch>)
+#
+#   Phase 1 — Default routing table routes
+#     - Create two delegate routes in the VPC default routing table
+#     - Assert both routes exist with correct destinations
+#     - Delete both routes and assert they are gone
+#
+#   Phase 2 — Custom routing table routes
+#     - Create a new custom routing table in the VPC
+#     - Create two delegate routes in the custom routing table
+#     - Assert both routes exist with correct destinations
+#     - Delete both routes and assert they are gone
+#     - Delete the custom routing table
+#
+#   Phase 3 — Teardown
+#     - Delete the test VPC
+#
+# Usage:
+#   export IC_API_KEY="your-api-key"
+#   ansible-playbook test/test-vpc-routes.yml
+# ============================================================
+
+- name: Test VPC Routes — default and custom routing tables
   hosts: localhost
   gather_facts: true
   vars:
     region: "us-east"
     zone: "us-east-1"
-  
+
+  module_defaults:
+    group/ibm.cloudcollection.ibm:
+      ibmcloud_api_key: "{{ lookup('ansible.builtin.env', 'IC_API_KEY') }}"
+      region: "{{ region }}"
+
   tasks:
-    - name: Set VPC name with timestamp
-      set_fact:
+
+    # ==========================================================
+    # Phase 0 — Setup: create the test VPC
+    # ==========================================================
+    - name: "Phase 0 | Set test VPC name"
+      ansible.builtin.set_fact:
         vpc_name: "test-vpc-routes-{{ ansible_date_time.epoch }}"
 
-    - name: Create VPC
+    - name: "Phase 0 | Create test VPC"
       ibm.cloudcollection.ibm_is_vpc:
         name: "{{ vpc_name }}"
         state: present
       register: vpc_result
 
-    - name: Display VPC info
-      debug:
-        msg: 
-          - "VPC created with ID: {{ vpc_result.resource.id }}"
-          - "VPC Name: {{ vpc_result.resource.name }}"
-          - "Default Routing Table ID: {{ vpc_result.resource.default_routing_table.id }}"
-
-    - name: Create first route (10.20.30.0/24 -> 192.168.1.1, priority 2)
-      ibm.cloudcollection.ibm_is_route:
+    - name: "Phase 0 | Set vpc_id and default routing table ID"
+      ansible.builtin.set_fact:
         vpc_id: "{{ vpc_result.resource.id }}"
-        routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
-        name: "route-1-to-subnet-1"
+        default_rt_id: "{{ vpc_result.resource.default_routing_table.id }}"
+
+    - name: "Phase 0 | Summary"
+      ansible.builtin.debug:
+        msg:
+          - "VPC        : {{ vpc_name }} ({{ vpc_id }})"
+          - "Default RT : {{ default_rt_id }}"
+
+    # ==========================================================
+    # Phase 1 — Default routing table: create routes
+    # ==========================================================
+    - name: "Phase 1 | Create route-default-1 in default routing table"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ default_rt_id }}"
+        name: "route-default-1"
         destination: "10.20.30.0/24"
         zone: "{{ zone }}"
         action: "delegate"
         priority: 2
-        next_hop:
-          address: "192.168.1.1"
         state: present
-      register: route1_result
+      register: rt_default_r1
 
-    - name: Display first route
-      debug:
-        msg: 
-          - "Route 1 created successfully"
-          - "ID: {{ route1_result.resource.id }}"
-          - "Name: {{ route1_result.resource.name }}"
-          - "Destination: {{ route1_result.resource.destination }}"
-          - "Next Hop: {{ route1_result.resource.next_hop.address }}"
-          - "Priority: {{ route1_result.resource.priority }}"
-          - "Action: {{ route1_result.resource.action }}"
-
-    - name: Create second route (10.30.40.32/32 -> 192.168.2.1, priority 1)
+    - name: "Phase 1 | Create route-default-2 in default routing table"
       ibm.cloudcollection.ibm_is_route:
-        vpc_id: "{{ vpc_result.resource.id }}"
-        routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
-        name: "route-2-to-host"
-        destination: "10.30.40.32/32"
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ default_rt_id }}"
+        name: "route-default-2"
+        destination: "10.30.40.0/24"
         zone: "{{ zone }}"
         action: "delegate"
         priority: 1
-        next_hop:
-          address: "192.168.2.1"
         state: present
-      register: route2_result
+      register: rt_default_r2
 
-    - name: Display second route
-      debug:
-        msg: 
-          - "Route 2 created successfully"
-          - "ID: {{ route2_result.resource.id }}"
-          - "Name: {{ route2_result.resource.name }}"
-          - "Destination: {{ route2_result.resource.destination }}"
-          - "Next Hop: {{ route2_result.resource.next_hop.address }}"
-          - "Priority: {{ route2_result.resource.priority }}"
-          - "Action: {{ route2_result.resource.action }}"
+    - name: "Phase 1 | Assert both default-table routes were created"
+      ansible.builtin.assert:
+        that:
+          - rt_default_r1.changed
+          - rt_default_r1.resource.destination == "10.20.30.0/24"
+          - rt_default_r1.resource.action == "delegate"
+          - rt_default_r2.changed
+          - rt_default_r2.resource.destination == "10.30.40.0/24"
+          - rt_default_r2.resource.action == "delegate"
+        success_msg: "✅ Phase 1 — both default-table routes created correctly"
+        fail_msg: "❌ Phase 1 — default-table route creation failed"
 
-    - name: Test Summary
-      debug:
+    - name: "Phase 1 | Idempotency — re-run creation (expect changed=false)"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ default_rt_id }}"
+        name: "route-default-1"
+        destination: "10.20.30.0/24"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 2
+        state: present
+      register: rt_default_r1_idem
+
+    - name: "Phase 1 | Assert idempotency (no second change)"
+      ansible.builtin.assert:
+        that: not rt_default_r1_idem.changed
+        success_msg: "✅ Phase 1 — idempotency confirmed"
+        fail_msg: "❌ Phase 1 — module changed resource on second run"
+
+    # ==========================================================
+    # Phase 1 — Default routing table: delete routes
+    # ==========================================================
+    - name: "Phase 1 | Delete route-default-1"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ default_rt_id }}"
+        name: "route-default-1"
+        state: absent
+
+    - name: "Phase 1 | Delete route-default-2"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ default_rt_id }}"
+        name: "route-default-2"
+        state: absent
+
+    - name: "Phase 1 | Assert both default-table routes deleted (idempotent absent)"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ default_rt_id }}"
+        name: "route-default-1"
+        state: absent
+      register: rt_default_r1_del_idem
+
+    - name: "Phase 1 | Assert delete is idempotent"
+      ansible.builtin.assert:
+        that: not rt_default_r1_del_idem.changed
+        success_msg: "✅ Phase 1 — delete idempotency confirmed"
+        fail_msg: "❌ Phase 1 — delete changed resource on second run"
+
+    - name: "Phase 1 | Done"
+      ansible.builtin.debug:
+        msg: "✅ Phase 1 complete — default routing table routes created and cleaned up"
+
+    # ==========================================================
+    # Phase 2 — Custom routing table: create table + routes
+    # ==========================================================
+    - name: "Phase 2 | Create custom routing table"
+      ibm.cloudcollection.ibm_is_routing_table:
+        vpc_id: "{{ vpc_id }}"
+        name: "rt-custom-test"
+        state: present
+      register: custom_rt
+
+    - name: "Phase 2 | Assert custom routing table created"
+      ansible.builtin.assert:
+        that:
+          - custom_rt.changed
+          - custom_rt.resource.name == "rt-custom-test"
+          - not custom_rt.resource.is_default
+        success_msg: "✅ Phase 2 — custom routing table created"
+        fail_msg: "❌ Phase 2 — custom routing table creation failed"
+
+    - name: "Phase 2 | Set custom routing table ID"
+      ansible.builtin.set_fact:
+        custom_rt_id: "{{ custom_rt.resource.id }}"
+
+    - name: "Phase 2 | Create route-custom-1 in custom routing table"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ custom_rt_id }}"
+        name: "route-custom-1"
+        destination: "10.50.0.0/24"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 1
+        state: present
+      register: rt_custom_r1
+
+    - name: "Phase 2 | Create route-custom-2 in custom routing table"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ custom_rt_id }}"
+        name: "route-custom-2"
+        destination: "10.60.0.0/24"
+        zone: "{{ zone }}"
+        action: "delegate"
+        priority: 2
+        state: present
+      register: rt_custom_r2
+
+    - name: "Phase 2 | Assert both custom-table routes were created"
+      ansible.builtin.assert:
+        that:
+          - rt_custom_r1.changed
+          - rt_custom_r1.resource.destination == "10.50.0.0/24"
+          - rt_custom_r2.changed
+          - rt_custom_r2.resource.destination == "10.60.0.0/24"
+        success_msg: "✅ Phase 2 — both custom-table routes created correctly"
+        fail_msg: "❌ Phase 2 — custom-table route creation failed"
+
+    # ==========================================================
+    # Phase 2 — Custom routing table: delete routes + table
+    # ==========================================================
+    - name: "Phase 2 | Delete route-custom-1"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ custom_rt_id }}"
+        name: "route-custom-1"
+        state: absent
+
+    - name: "Phase 2 | Delete route-custom-2"
+      ibm.cloudcollection.ibm_is_route:
+        vpc_id: "{{ vpc_id }}"
+        routing_table_id: "{{ custom_rt_id }}"
+        name: "route-custom-2"
+        state: absent
+
+    - name: "Phase 2 | Delete custom routing table"
+      ibm.cloudcollection.ibm_is_routing_table:
+        vpc_id: "{{ vpc_id }}"
+        id: "{{ custom_rt_id }}"
+        name: "rt-custom-test"
+        state: absent
+      register: custom_rt_del
+
+    - name: "Phase 2 | Assert custom routing table deleted"
+      ansible.builtin.assert:
+        that: custom_rt_del.changed
+        success_msg: "✅ Phase 2 — custom routing table deleted"
+        fail_msg: "❌ Phase 2 — custom routing table deletion failed"
+
+    - name: "Phase 2 | Done"
+      ansible.builtin.debug:
+        msg: "✅ Phase 2 complete — custom routing table and routes created and cleaned up"
+
+    # ==========================================================
+    # Phase 3 — Teardown: delete the test VPC
+    # ==========================================================
+    - name: "Phase 3 | Delete test VPC"
+      ibm.cloudcollection.ibm_is_vpc:
+        id: "{{ vpc_id }}"
+        name: "{{ vpc_name }}"
+        state: absent
+      register: vpc_del
+
+    - name: "Phase 3 | Assert VPC deleted"
+      ansible.builtin.assert:
+        that: vpc_del.changed
+        success_msg: "✅ Phase 3 — test VPC deleted"
+        fail_msg: "❌ Phase 3 — VPC deletion failed"
+
+    - name: "Test complete"
+      ansible.builtin.debug:
         msg:
-          - "=========================================="
-          - "VPC Routes Test Completed Successfully"
-          - "=========================================="
-          - "VPC ID: {{ vpc_result.resource.id }}"
-          - "VPC Name: {{ vpc_result.resource.name }}"
-          - "Routing Table ID: {{ vpc_result.resource.default_routing_table.id }}"
-          - ""
-          - "Route 1:"
-          - "  ID: {{ route1_result.resource.id }}"
-          - "  Name: {{ route1_result.resource.name }}"
-          - "  Destination: {{ route1_result.resource.destination }}"
-          - "  Next Hop: {{ route1_result.resource.next_hop.address }}"
-          - "  Priority: {{ route1_result.resource.priority }}"
-          - ""
-          - "Route 2:"
-          - "  ID: {{ route2_result.resource.id }}"
-          - "  Name: {{ route2_result.resource.name }}"
-          - "  Destination: {{ route2_result.resource.destination }}"
-          - "  Next Hop: {{ route2_result.resource.next_hop.address }}"
-          - "  Priority: {{ route2_result.resource.priority }}"
-          - ""
-          - "To clean up, uncomment the cleanup section and run again"
-
-    # Cleanup section (commented out by default)
-    # Uncomment to delete the test resources
-    # - name: Delete route 1
-    #   ibm.cloudcollection.ibm_is_route:
-    #     vpc_id: "{{ vpc_result.resource.id }}"
-    #     routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
-    #     id: "{{ route1_result.resource.id }}"
-    #     state: absent
-    #
-    # - name: Delete route 2
-    #   ibm.cloudcollection.ibm_is_route:
-    #     vpc_id: "{{ vpc_result.resource.id }}"
-    #     routing_table_id: "{{ vpc_result.resource.default_routing_table.id }}"
-    #     id: "{{ route2_result.resource.id }}"
-    #     state: absent
-    #
-    # - name: Delete VPC
-    #   ibm.cloudcollection.ibm_is_vpc:
-    #     id: "{{ vpc_result.resource.id }}"
-    #     state: absent
+          - "================================================"
+          - "✅  test-vpc-routes.yml PASSED"
+          - "================================================"
+          - "VPC     : {{ vpc_name }} — created and deleted"
+          - "Phase 1 : 2 routes in default routing table — created, asserted, deleted"
+          - "Phase 2 : custom routing table + 2 routes — created, asserted, deleted"

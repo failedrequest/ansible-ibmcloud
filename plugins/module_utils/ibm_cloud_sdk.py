@@ -28,6 +28,10 @@ class IBMCloudAuth:
     1. Module parameters (ibmcloud_api_key)
     2. Environment variables (IC_API_KEY, IBMCLOUD_API_KEY)
     3. IBM Cloud CLI configuration
+
+    IAM endpoint override (for non-production environments, e.g. test.cloud.ibm.com):
+      IBMCLOUD_IAM_API_ENDPOINT  — honoured by the IBM Cloud CLI
+      IC_IAM_TOKEN_URL           — alternate name recognised by this collection
     """
 
     def __init__(self, api_key: Optional[str] = None):
@@ -44,12 +48,26 @@ class IBMCloudAuth:
                 "parameter or set IC_API_KEY/IBMCLOUD_API_KEY environment variable."
             )
 
-        self.authenticator = IAMAuthenticator(self.api_key)
+        iam_url = self._get_iam_url_from_env()
+        if iam_url:
+            self.authenticator = IAMAuthenticator(self.api_key, url=iam_url)
+        else:
+            self.authenticator = IAMAuthenticator(self.api_key)
 
     @staticmethod
     def _get_api_key_from_env() -> Optional[str]:
         """Get API key from environment variables."""
         return os.environ.get('IC_API_KEY') or os.environ.get('IBMCLOUD_API_KEY')
+
+    @staticmethod
+    def _get_iam_url_from_env() -> Optional[str]:
+        """Get IAM token endpoint override from environment variables.
+
+        Checks (in order):
+          IBMCLOUD_IAM_API_ENDPOINT  — used by the IBM Cloud CLI
+          IC_IAM_TOKEN_URL           — alternate name for the same setting
+        """
+        return os.environ.get('IBMCLOUD_IAM_API_ENDPOINT') or os.environ.get('IC_IAM_TOKEN_URL')
 
     def get_authenticator(self) -> IAMAuthenticator:
         """Return the IAM authenticator instance."""
@@ -88,13 +106,38 @@ class IBMCloudSDKModule:
         self.region = self.params.get('region', 'us-south')
         self.resource_group_id = self.params.get('resource_group')
         self.state = self.params.get('state', 'present')
+        self.vpc_url = self._get_vpc_url(self.region)
 
-        # Result dictionary
+        # Result dictionary — 'found' is seeded False so that playbook
+        # `failed_when: not result.found` guards are always safe, even if
+        # the module exits via fail_json before run() can set it explicitly.
         self.result = {
             'changed': False,
             'resource': {},
-            'msg': ''
+            'msg':     '',
+            'found':   False,
         }
+
+    def _get_vpc_url(self, region: str) -> str:
+        """Return the VPC service URL for the given region.
+
+        Checks (in order):
+          1. IBMCLOUD_IS_NG_API_ENDPOINT — set by the IBM Cloud CLI for the IS
+             (Infrastructure Services / VPC) endpoint; already includes the full
+             URL with path, e.g. https://us-south-stage01.iaasdev.cloud.ibm.com/v1
+          2. IBMCLOUD_VPC_URL / IC_VPC_URL — explicit full URL override
+          3. Production default: https://{region}.iaas.cloud.ibm.com/v1
+        """
+        # IBM Cloud CLI canonical VPC endpoint variable — use as-is.
+        is_endpoint = os.environ.get('IBMCLOUD_IS_NG_API_ENDPOINT')
+        if is_endpoint:
+            return is_endpoint.rstrip('/')
+
+        override = os.environ.get('IBMCLOUD_VPC_URL') or os.environ.get('IC_VPC_URL')
+        if override:
+            return override.rstrip('/')
+
+        return f'https://{region}.iaas.cloud.ibm.com/v1'
 
     def handle_api_exception(self, e: ApiException, operation: str = "operation") -> None:
         """

@@ -157,6 +157,7 @@ msg:
     type: str
 '''
 
+import re
 from urllib.parse import urlparse, parse_qs
 
 from ansible.module_utils.basic import AnsibleModule
@@ -184,7 +185,7 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
             self.fail_json(msg="ibm-vpc Python SDK is required")
 
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
-        self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
+        self.vpc_service.set_service_url(self.vpc_url)
 
         self.resource_id = self.params.get('id')
         self.resource_name = self.params.get('name')
@@ -219,10 +220,13 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
         return results
 
     def get_vpc_id_by_name(self, vpc_name: str):
-        """Get VPC ID by name."""
+        """Get VPC ID by name (client-side filter — list_vpcs has no name= param in SDK 0.35)."""
         try:
-            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs', name=vpc_name)
-            return vpcs[0].get('id') if vpcs else None
+            vpcs = self._paginate(self.vpc_service.list_vpcs, 'vpcs')
+            for vpc in vpcs:
+                if vpc.get('name') == vpc_name:
+                    return vpc.get('id')
+            return None
         except ApiException as e:
             self.handle_api_exception(e, f"list VPCs to find {vpc_name}")
             return None
@@ -284,11 +288,15 @@ class IBMSubnetInfoModule(IBMCloudSDKModule):
 
             # If VPC filter is specified, resolve it
             if self.vpc_filter:
-                # Check if it's a VPC ID (starts with 'r006-' or similar)
-                if self.vpc_filter.startswith('r0'):
+                # VPC IDs are UUIDs with a numeric resource-type prefix, e.g.
+                # r006-..., r134-..., etc.  Match any rNNN-<uuid> pattern so
+                # staging/test environment IDs (which use different prefixes
+                # than production) are not mistaken for names.
+                if re.match(r'^r\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+                            self.vpc_filter):
                     vpc_id = self.vpc_filter
                 else:
-                    # Assume it's a VPC name, look it up
+                    # Treat as a VPC name and resolve to an ID
                     vpc_id = self.get_vpc_id_by_name(self.vpc_filter)
                     if not vpc_id:
                         self.fail_json(msg=f"VPC '{self.vpc_filter}' not found")
