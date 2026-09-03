@@ -185,7 +185,7 @@ class IBMSubnetReservedIPModule(IBMCloudSDKModule):
             self.fail_json(msg="ibm-vpc Python SDK is required")
 
         self.vpc_service = VpcV1(authenticator=self.auth.get_authenticator())
-        self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
+        self.vpc_service.set_service_url(self.vpc_url)
 
         self.subnet_id = self.params.get('subnet_id')
         self.resource_id = self.params.get('id')
