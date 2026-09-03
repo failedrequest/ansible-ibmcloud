@@ -50,7 +50,7 @@ class IBMCloudAuth:
 
         iam_url = self._get_iam_url_from_env()
         if iam_url:
-            self.authenticator = IAMAuthenticator(self.api_key, iam_url=iam_url)
+            self.authenticator = IAMAuthenticator(self.api_key, url=iam_url)
         else:
             self.authenticator = IAMAuthenticator(self.api_key)
 
