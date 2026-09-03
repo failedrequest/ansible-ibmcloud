@@ -1,181 +1,243 @@
-# Getting Started with IBM Cloud Native Ansible Collection
+# Getting Started — IBM Cloud Ansible Collection v2.0.9
 
-## Prerequisites
-
-- Python 3.10 or higher
-- IBM Cloud account with API key
-- Basic knowledge of Ansible and IBM Cloud
-
-## Installation
-
-### Quick Setup
-
-Run the provided setup script:
+## Install in two commands
 
 ```bash
-./setup.sh
+pip install "ibm-cloud-sdk-core>=3.20.0" "ibm-vpc>=0.33.0" \
+            "ibm-platform-services>=0.75.0" "ibm-cloud-networking-services>=0.34.0"
+
+ansible-galaxy collection install ibm-cloudcollection-2.0.9.tar.gz
 ```
 
-This will:
-1. Create a virtual environment
-2. Install all dependencies
-3. Configure Ansible collection paths
+Full installation details: [INSTALLATION.md](INSTALLATION.md)
 
-### Manual Setup
+---
 
-```bash
-# Create virtual environment
-python3 -m venv build/venv
-source build/venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-
-```
-
-## Configuration
-
-### Set IBM Cloud API Key
+## Set your API key
 
 ```bash
 export IC_API_KEY="your-ibm-cloud-api-key"
 ```
 
-Or create a `.env` file (not tracked in git):
+**How to get an API key:**
+1. Log in to [IBM Cloud](https://cloud.ibm.com)
+2. Go to **Manage → Access (IAM) → API keys**
+3. Click **Create an IBM Cloud API key** and copy it immediately
 
-```bash
-IC_API_KEY=your-ibm-cloud-api-key
-IC_REGION=us-south
+---
+
+## Use `module_defaults` to avoid repeating credentials
+
+Add this to every playbook once and all collection tasks inherit it automatically:
+
+```yaml
+module_defaults:
+  group/ibm.cloudcollection.ibm:
+    ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+    region: us-south
 ```
 
-### Get Your API Key
+---
 
-1. Log in to IBM Cloud: https://cloud.ibm.com
-2. Navigate to: Manage → Access (IAM) → API keys
-3. Click "Create an IBM Cloud API key"
-4. Copy the API key (you won't be able to see it again)
-
-## Your First Playbook
-
-Create a file `my_first_vpc.yml`:
+## Your first playbook
 
 ```yaml
 ---
-- name: Create my first VPC
+- name: Create my first IBM Cloud VPC
   hosts: localhost
+  gather_facts: false
+
+  module_defaults:
+    group/ibm.cloudcollection.ibm:
+      ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+      region: us-south
+
   tasks:
     - name: Create VPC
-      ibm_is_vpc:
+      ibm.cloudcollection.ibm_is_vpc:
         name: my-first-vpc
-        region: us-south
         state: present
-      register: result
+      register: vpc
 
     - name: Show VPC ID
-      debug:
-        msg: "VPC ID: {{ result.resource.id }}"
+      ansible.builtin.debug:
+        msg: "VPC created: {{ vpc.resource.id }}"
 ```
 
-Run it:
-
+**Dry run first (no changes made):**
 ```bash
-ansible-playbook my_first_vpc.yml
+ansible-playbook my-first-vpc.yml --check
 ```
 
-## Testing Without Changes
-
-Use check mode to see what would happen:
-
+**Create for real:**
 ```bash
-ansible-playbook my_first_vpc.yml --check
+ansible-playbook my-first-vpc.yml
 ```
 
-## Common Use Cases
+---
 
-### 1. Create Complete VPC Infrastructure
+## Common patterns
 
-```bash
-ansible-playbook examples/create_vpc_infrastructure.yml
+### Look up an existing resource by name
+
+```yaml
+- name: Get VPC info
+  ibm.cloudcollection.ibm_is_vpc_info:
+    name: my-existing-vpc
+  register: vpc_info
+
+- name: Use the VPC ID
+  ansible.builtin.debug:
+    msg: "{{ vpc_info.resource.id }}"
 ```
 
-### 2. Manage Multiple Environments
+### Create a full VPC stack
 
 ```yaml
 ---
-- name: Multi-environment setup
+- name: VPC stack
   hosts: localhost
-  vars_files:
-    - vars/{{ env }}.yml
+  gather_facts: false
+
+  module_defaults:
+    group/ibm.cloudcollection.ibm:
+      ibmcloud_api_key: "{{ lookup('env', 'IC_API_KEY') }}"
+      region: us-south
+
   tasks:
     - name: Create VPC
-      ibm_is_vpc:
-        name: "{{ vpc_name }}"
-        region: "{{ region }}"
-        tags: "{{ tags }}"
+      ibm.cloudcollection.ibm_is_vpc:
+        name: prod-vpc
+        state: present
+      register: vpc
+
+    - name: Create security group
+      ibm.cloudcollection.ibm_is_security_group:
+        name: prod-sg
+        vpc: "{{ vpc.resource.id }}"
+        state: present
+      register: sg
+
+    - name: Allow inbound HTTPS
+      ibm.cloudcollection.ibm_is_security_group_rule:
+        security_group: "{{ sg.resource.id }}"
+        direction: inbound
+        protocol: tcp
+        port_min: 443
+        port_max: 443
+        state: present
+
+    - name: Create subnet
+      ibm.cloudcollection.ibm_is_subnet:
+        name: prod-subnet
+        vpc: "{{ vpc.resource.id }}"
+        zone: us-south-1
+        ipv4_cidr_block: 10.240.0.0/24
+        state: present
+      register: subnet
+```
+
+### Reserve IPs and bind to VNIs
+
+```yaml
+    - name: Reserve an IP
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet.resource.id }}"
+        name: vni-primary-ip
+        state: present
+      register: rip
+
+    - name: Create VNI bound to the reserved IP
+      ibm.cloudcollection.ibm_is_virtual_network_interface:
+        name: my-vni
+        subnet: "{{ subnet.resource.id }}"
+        primary_ip_id: "{{ rip.resource.id }}"
         state: present
 ```
 
-Run with:
-```bash
-ansible-playbook multi-env.yml -e env=dev
-ansible-playbook multi-env.yml -e env=prod
+### List reserved IPs with owner filter
+
+```yaml
+    - name: List only user-created reserved IPs
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip_info:
+        subnet_id: "{{ subnet.resource.id }}"
+        owner: user
+      register: user_rips
+
+    - name: Build name → ID map
+      ansible.builtin.set_fact:
+        rip_id_map: "{{ rip_id_map | default({}) | combine({item.name: item.id}) }}"
+      loop: "{{ user_rips.resources }}"
 ```
 
-### 3. Using Ansible Vault for Secrets
+---
+
+## Check mode (dry run)
+
+Every module supports `--check`. Use it before any destructive run:
 
 ```bash
-# Create encrypted file
-ansible-vault create secrets.yml
-
-# Add your API key
-ibm_api_key: your-secret-key
-
-# Use in playbook
-ansible-playbook playbook.yml --ask-vault-pass
+ansible-playbook my-playbook.yml --check
 ```
+
+---
+
+## Regions
+
+| Code | Location |
+|------|----------|
+| `us-south` | Dallas |
+| `us-east` | Washington DC |
+| `eu-gb` | London |
+| `eu-de` | Frankfurt |
+| `jp-tok` | Tokyo |
+| `jp-osa` | Osaka |
+| `au-syd` | Sydney |
+| `ca-tor` | Toronto |
+| `br-sao` | São Paulo |
+
+---
 
 ## Troubleshooting
 
-### Module Not Found
-
+### Module not found
 ```bash
-# Ensure virtual environment is activated
-source build/venv/bin/activate
-
-# Verify installation
-python -c "import ibm_vpc; print('OK')"
+ansible-galaxy collection list | grep ibm
+# If missing: ansible-galaxy collection install ibm-cloudcollection-2.0.9.tar.gz
 ```
 
-### Authentication Errors
-
+### Authentication error
 ```bash
-# Verify API key is set
-echo $IC_API_KEY
-
-# Test API key
-ibmcloud login --apikey $IC_API_KEY
+echo $IC_API_KEY   # must be non-empty
 ```
 
-### Region Issues
+If running against `test.cloud.ibm.com`, see
+[Troubleshooting: test.cloud.ibm.com](troubleshooting-api-key-old-venv.md).
 
-Ensure you're using a valid region:
-- us-south (Dallas)
-- us-east (Washington DC)
-- eu-gb (London)
-- eu-de (Frankfurt)
-- jp-tok (Tokyo)
-- au-syd (Sydney)
+### `module_defaults group` error
+You have a version older than 2.0.9 installed. Upgrade:
+```bash
+ansible-galaxy collection install --force ibm-cloudcollection-2.0.17.tar.gz
+```
 
-## Next Steps
+### Non-production / staging environment
 
-1. Review the [README.md](../README.md) for full documentation
-2. Explore [examples/](../examples/) directory
-3. Check module documentation: `ansible-doc ibm_is_vpc`
-4. Join IBM Cloud community forums
+Set the IBM Cloud CLI endpoint variables before running the playbook:
 
-## Resources
+```bash
+export IBMCLOUD_IAM_API_ENDPOINT=https://iam.test.cloud.ibm.com
+export IBMCLOUD_IS_NG_API_ENDPOINT=https://us-south-stage01.iaasdev.cloud.ibm.com/v1
+```
 
-- [IBM Cloud Documentation](https://cloud.ibm.com/docs)
-- [IBM Cloud Python SDK](https://github.com/IBM/ibm-cloud-sdk-common)
-- [Ansible Documentation](https://docs.ansible.com)
+No playbook changes required. See
+[Troubleshooting: test.cloud.ibm.com](troubleshooting-api-key-old-venv.md) for
+details.
+
+---
+
+## Next steps
+
+- **[Quick Start](QUICK_START.md)** — 5-minute guide
+- **[Module Reference](MODULE_REFERENCE.md)** — Full module documentation
+- **Examples**: `examples/` in the collection
+- **IBM Cloud Docs**: https://cloud.ibm.com/docs

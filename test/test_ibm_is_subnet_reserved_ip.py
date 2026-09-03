@@ -23,7 +23,7 @@ from io import StringIO
 import os
 
 COLLECTION_ROOT = os.path.expanduser(
-    "~/.ansible/collections/ansible_collections"
+    "~/.ansible/collections"
 )
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

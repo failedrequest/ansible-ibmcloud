@@ -204,7 +204,7 @@ class IBMVPCModule(IBMCloudSDKModule):
         self.vpc_service = VpcV1(
             authenticator=self.auth.get_authenticator()
         )
-        self.vpc_service.set_service_url(f'https://{self.region}.iaas.cloud.ibm.com/v1')
+        self.vpc_service.set_service_url(self.vpc_url)
 
         # Module-specific parameters
         self.vpc_id = self.params.get('id')

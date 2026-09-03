@@ -1,0 +1,215 @@
+---
+# ============================================================
+# net-cloud-cleanup.yml — DR-Load IBM Cloud VPC teardown
+#
+# Deletes everything net-cloud.yml created, in safe dependency
+# order:
+#   1. Detach VNIs from cluster  (blocks VNI delete if skipped)
+#   2. Delete VNIs               (async — module polls until gone)
+#   3. Delete reserved IPs       (must go before subnets)
+#   4. Delete VPC subnets        (must go before address prefix)
+#   5. Delete VPC address prefix
+#
+# Run with the vars file that describes the resources to remove:
+#
+#   ansible-playbook net-cloud-cleanup.yml
+#   ansible-playbook net-cloud-cleanup.yml -e @vars-hard.yml
+#   ansible-playbook net-cloud-cleanup.yml -e @vars-hard-dr.yml
+#
+# The playbook is fully idempotent — skips anything already gone.
+# ============================================================
+
+- name: DR-Load IBM Cloud VPC Teardown
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars.yml
+
+  module_defaults:
+    group/ibm.cloudcollection.ibm:
+      ibmcloud_api_key: "{{ ibmcloud_api_key }}"
+      region: "{{ ibmcloud_region }}"
+
+  tasks:
+
+    # ========================================================
+    # 0. Resolve vpc_name → vpc_id
+    # ========================================================
+    - name: Look up VPC "{{ vpc_name }}"
+      ibm.cloudcollection.ibm_is_vpc_info:
+        name: "{{ vpc_name if not (vpc_name is match('^r[0-9]+-[0-9a-f-]{36}$')) else omit }}"
+        id: "{{ vpc_name if (vpc_name is match('^r[0-9]+-[0-9a-f-]{36}$')) else omit }}"
+      register: _vpc_info
+      failed_when: not _vpc_info.found
+
+    - name: Set vpc_id fact
+      ansible.builtin.set_fact:
+        vpc_id: "{{ _vpc_info.resource.id }}"
+
+    - name: Show target VPC
+      ansible.builtin.debug:
+        msg: "Cleaning up in VPC: {{ vpc_name }} ({{ vpc_id }})"
+
+    # ========================================================
+    # 1. Build the expected VNI name list from vars
+    #    Format: rip-<type>-<NN>-<vm_prefix>-<type>-subnet-<vlan>
+    # ========================================================
+    - name: Build expected VNI names
+      ansible.builtin.set_fact:
+        _expected_vni_names: >-
+          {{
+            _expected_vni_names | default([]) + [
+              'rip-' ~ item.0.name ~ '-' ~ '%02d' | format(item.1 + 1)
+              ~ '-' ~ vm_prefix ~ '-' ~ item.0.name ~ '-subnet'
+              ~ '-' ~ item.0.vlan | string
+            ]
+          }}
+      loop: "{{ vm_types | product(range(0, vm_count | int)) | list }}"
+      loop_control:
+        label: "rip-{{ item.0.name }}-{{ '%02d' | format(item.1 + 1) }}-{{ vm_prefix }}-{{ item.0.name }}-subnet-{{ item.0.vlan }}"
+
+    # ========================================================
+    # 2. Fetch all VNIs in region and filter to our names
+    # ========================================================
+    - name: Fetch all VNIs in region
+      ibm.cloudcollection.ibm_is_virtual_network_interface_info:
+      register: _all_vnis
+
+    - name: Build list of VNIs to delete
+      ansible.builtin.set_fact:
+        _vnis_to_delete: >-
+          {{
+            _all_vnis.resources
+            | selectattr('name', 'in', _expected_vni_names)
+            | list
+          }}
+
+    # ========================================================
+    # 3. Detach VNIs still attached to a cluster worker
+    #    (API returns 409 vni_in_use_target_exists if skipped)
+    #    ibm_ks_cluster_vni (2.0.8) uses 'ibmcloud ks vni ls'
+    #    for idempotency and 'vni detach -f -q' for teardown.
+    # ========================================================
+    - name: Detach VNI from cluster
+      ibm.cloudcollection.ibm_ks_cluster_vni:
+        cluster: "{{ item.target.crn.split(':')[7] }}"
+        vni_id: "{{ item.id }}"
+        ibmcloud_api_key: "{{ ibmcloud_api_key }}"
+        region: "{{ ibmcloud_region }}"
+        state: absent
+      loop: "{{ _vnis_to_delete | selectattr('target', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }} → detach from {{ item.target.crn.split(':')[7] }}"
+
+    # ========================================================
+    # 4. Delete VNIs
+    #    ibm_is_virtual_network_interface polls until 404 after
+    #    the async DELETE — ensures subnets are safe to delete.
+    #    (ibm.cloudcollection 2.0.8 module patched locally to call
+    #    delete_virtual_network_interfaces — plural — matching SDK 0.33+)
+    # ========================================================
+    - name: Delete VNI
+      ibm.cloudcollection.ibm_is_virtual_network_interface:
+        name: "{{ item.name }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ _vnis_to_delete }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.id }})"
+
+    # ========================================================
+    # 5. Fetch target subnets in this VPC
+    # ========================================================
+    - name: Build target subnet name list
+      ansible.builtin.set_fact:
+        _target_subnet_names: >-
+          {{ vm_types | map(attribute='name')
+                      | map('regex_replace', '^(.*)$', vm_prefix ~ '-\1-subnet')
+                      | list }}
+
+    - name: Fetch subnets in VPC {{ vpc_id }}
+      ibm.cloudcollection.ibm_is_subnet_info:
+        vpc: "{{ vpc_id }}"
+      register: _vpc_subnets
+
+    - name: Build target subnet list (name + id)
+      ansible.builtin.set_fact:
+        _target_subnets: >-
+          {{
+            _vpc_subnets.resources
+            | selectattr('name', 'in', _target_subnet_names)
+            | list
+          }}
+
+    # ========================================================
+    # 6. Delete user-owned reserved IPs from each subnet
+    #    ibm_is_subnet_reserved_ip_info (2.0.8) filters to
+    #    owner=user — avoids touching VPC-managed IPs.
+    # ========================================================
+    - name: Fetch user-owned reserved IPs in subnet
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip_info:
+        subnet_id: "{{ item.id }}"
+        owner: user
+      loop: "{{ _target_subnets }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: _rip_results
+
+    - name: Build expected reserved IP names
+      ansible.builtin.set_fact:
+        _expected_rip_names: >-
+          {{
+            _expected_rip_names | default([]) + [
+              'rip-' ~ item.0.name ~ '-' ~ '%02d' | format(item.1 + 1)
+            ]
+          }}
+      loop: "{{ vm_types | product(range(0, vm_count | int)) | list }}"
+      loop_control:
+        label: "rip-{{ item.0.name }}-{{ '%02d' | format(item.1 + 1) }}"
+
+    - name: Delete reserved IP from subnet
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ item.0.item.id }}"
+        id: "{{ item.1.id }}"
+        state: absent
+      loop: >-
+        {{
+          _rip_results.results
+          | subelements('resources')
+          | selectattr('1.name', 'in', _expected_rip_names)
+          | list
+        }}
+      loop_control:
+        label: "{{ item.1.name }} ({{ item.1.id }}) from {{ item.0.item.name }}"
+
+    # ========================================================
+    # 7. Delete VPC subnets
+    # ========================================================
+    - name: Delete VPC subnet
+      ibm.cloudcollection.ibm_is_subnet:
+        name: "{{ item.name }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ _target_subnets }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.id }})"
+
+    # ========================================================
+    # 8. Delete VPC address prefix
+    # ========================================================
+    - name: Delete VPC address prefix - "{{ vpc_prefix.name }}"
+      ibm.cloudcollection.ibm_is_address_prefix:
+        name: "{{ vpc_prefix.name }}"
+        vpc: "{{ vpc_id }}"
+        state: absent
+
+    # ========================================================
+    # Summary
+    # ========================================================
+    - name: Cleanup complete
+      ansible.builtin.debug:
+        msg: |
+          VPC      : {{ vpc_name }} ({{ vpc_id }})
+          Deleted VNIs           : {{ _vnis_to_delete | length }}
+          Deleted subnets        : {{ _target_subnets | length }}
+          Deleted address prefix : {{ vpc_prefix.name }}

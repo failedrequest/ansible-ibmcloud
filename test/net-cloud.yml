@@ -1,0 +1,211 @@
+---
+# ============================================================
+# net-cloud.yml — DR-Load IBM Cloud VPC setup
+#
+# Creates:
+#   1. VPC address prefix  (one block for all DR-Load VMs)
+#   2. VPC subnets         (one /27 per vm_type, carved from the prefix)
+#   3. Reserved IPs        (one per VM NIC — vm_types × vm_count)
+#   4. VNIs                (one per reserved IP, bound by reserved IP ID)
+#
+# Run this before net-openshift.yml and vm-creation.yml.
+#
+# Usage:
+#   export IC_API_KEY=<your-key>
+#   ansible-playbook net-cloud.yml
+# ============================================================
+
+- name: DR-Load IBM Cloud VPC Network Setup
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars.yml
+
+  # Common parameters injected into every ibm.cloudcollection module call.
+  module_defaults:
+    group/ibm.cloudcollection.ibm:
+      ibmcloud_api_key: "{{ ibmcloud_api_key }}"
+      region: "{{ ibmcloud_region }}"
+
+  tasks:
+
+    # ========================================================
+    # 0. Resolve vpc_name → vpc_id + default_security_group_id
+    #
+    #    ibm_is_vpc_info (2.0.8) uses a server-side ?name= filter
+    #    on list_vpcs() — safe against cross-account name collisions.
+    #    Supports both human name and raw VPC ID via mutually_exclusive
+    #    name/id params.
+    # ========================================================
+    - name: Look up VPC "{{ vpc_name }}"
+      ibm.cloudcollection.ibm_is_vpc_info:
+        name: "{{ vpc_name if not (vpc_name is match('^r[0-9]+-[0-9a-f-]{36}$')) else omit }}"
+        id: "{{ vpc_name if (vpc_name is match('^r[0-9]+-[0-9a-f-]{36}$')) else omit }}"
+      register: _vpc_info
+      failed_when: not _vpc_info.found
+
+    - name: Set vpc_id and default_sg_id facts
+      ansible.builtin.set_fact:
+        vpc_id: "{{ _vpc_info.resource.id }}"
+        vpc_default_security_group_id: "{{ _vpc_info.resource.default_security_group.id }}"
+
+    # ========================================================
+    # 1. VPC address prefix — one block covering all vm_types
+    #    ibm_is_address_prefix is idempotent: it lists prefixes
+    #    scoped to vpc_id and only POSTs if the name is absent.
+    # ========================================================
+    - name: Ensure VPC address prefix exists - "{{ vpc_prefix.name }}"
+      ibm.cloudcollection.ibm_is_address_prefix:
+        name: "{{ vpc_prefix.name }}"
+        vpc: "{{ vpc_id }}"
+        zone: "{{ vpc_prefix.zone }}"
+        cidr: "{{ vpc_prefix.cidr }}"
+        state: present
+
+    # ========================================================
+    # 2. VPC subnets — one /27 per vm_type
+    #    ibm_is_subnet creates with VPCIdentityById so it is
+    #    scoped to the correct VPC from the start.
+    # ========================================================
+    - name: Ensure each subnet exists
+      ibm.cloudcollection.ibm_is_subnet:
+        name: "{{ vm_prefix }}-{{ item.name }}-subnet"
+        vpc: "{{ vpc_id }}"
+        zone: "{{ vpc_prefix.zone }}"
+        ipv4_cidr_block: "{{ item.subnet_cidr }}"
+        state: present
+      loop: "{{ vm_types }}"
+      loop_control:
+        label: "{{ vm_prefix }}-{{ item.name }}-subnet ({{ item.subnet_cidr }})"
+
+    # Fetch all subnets in the VPC to build a name→id map.
+    # ibm_is_subnet_info (2.0.8) uses server-side vpc_id filter + pagination.
+    - name: Fetch subnets in VPC to build ID map - "{{ vpc_id }}"
+      ibm.cloudcollection.ibm_is_subnet_info:
+        vpc: "{{ vpc_id }}"
+      register: _all_subnets
+
+    - name: Build subnet name-to-id map
+      ansible.builtin.set_fact:
+        subnet_id_map: >-
+          {{
+            subnet_id_map | default({}) |
+            combine({item.name: item.id})
+          }}
+      loop: >-
+        {{
+          _all_subnets.resources
+          | selectattr('name', 'in',
+              vm_types | map(attribute='name')
+              | map('regex_replace', '^(.*)$', vm_prefix ~ '-\1-subnet') | list)
+          | list
+        }}
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Build subnet name-to-vlan map
+      ansible.builtin.set_fact:
+        subnet_vlan_map: >-
+          {{
+            subnet_vlan_map | default({}) |
+            combine({vm_prefix ~ '-' ~ item.name ~ '-subnet': item.vlan})
+          }}
+      loop: "{{ vm_types }}"
+      loop_control:
+        label: "{{ vm_prefix }}-{{ item.name }}-subnet → vlan {{ item.vlan }}"
+
+    # ========================================================
+    # 3. Reserved IPs — one per VM NIC (vm_types × vm_count)
+    #    Name: rip-<type>-<NN>
+    #    ibm_is_subnet_reserved_ip is idempotent on name.
+    # ========================================================
+    - name: Build reserved_ips list
+      ansible.builtin.set_fact:
+        reserved_ips: >-
+          {{
+            reserved_ips | default([]) + [
+              {
+                'name':    'rip-' ~ item.0.name ~ '-' ~ '%02d' | format(item.1 + 1),
+                'subnet':  vm_prefix ~ '-' ~ item.0.name ~ '-subnet',
+                'address': (item.0.ip_start.split('.')[:3] | join('.'))
+                           ~ '.' ~
+                           ((item.0.ip_start.split('.')[3] | int) + item.1) | string
+              }
+            ]
+          }}
+      loop: "{{ vm_types | product(range(0, vm_count | int)) | list }}"
+      loop_control:
+        label: "rip-{{ item.0.name }}-{{ '%02d' | format(item.1 + 1) }}"
+
+    - name: Ensure reserved IP exists in each subnet
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_id_map[item.subnet] }}"
+        name: "{{ item.name }}"
+        address: "{{ item.address }}"
+        auto_delete: false
+        state: present
+      loop: "{{ reserved_ips }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.address }}) → {{ item.subnet }}"
+
+    # Re-fetch reserved IPs using list mode (2.0.8: owner filter, no name/id required).
+    # Filter to owner=user to exclude VPC-managed gateway/broadcast IPs.
+    - name: Fetch user-owned reserved IPs per subnet to build ID map
+      ibm.cloudcollection.ibm_is_subnet_reserved_ip:
+        subnet_id: "{{ subnet_id_map[item] }}"
+        owner: user
+      loop: "{{ subnet_id_map.keys() | list }}"
+      loop_control:
+        label: "{{ item }}"
+      register: _all_rips_raw
+
+    - name: Build reserved IP name-to-id map
+      ansible.builtin.set_fact:
+        rip_id_map: >-
+          {{
+            rip_id_map | default({}) |
+            combine(
+              dict(
+                item.resources | map(attribute='name') | list
+                | zip(item.resources | map(attribute='id') | list)
+              )
+            )
+          }}
+      loop: "{{ _all_rips_raw.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: (item.resources | default([]) | length) > 0
+
+    # ========================================================
+    # 4. VNIs — one per reserved IP
+    #    Name: rip-<type>-<NN>-<vm_prefix>-<type>-subnet-<vlan>
+    #    ibm_is_virtual_network_interface (2.0.8) supports
+    #    primary_ip_id — binds the pre-created reserved IP by ID.
+    # ========================================================
+    - name: Ensure VNI exists
+      ibm.cloudcollection.ibm_is_virtual_network_interface:
+        name: "{{ item.name }}-{{ item.subnet }}-{{ subnet_vlan_map[item.subnet] }}"
+        subnet: "{{ subnet_id_map[item.subnet] }}"
+        primary_ip_id: "{{ rip_id_map[item.name] }}"
+        security_groups:
+          - "{{ vpc_default_security_group_id }}"
+        enable_infrastructure_nat: true
+        state: present
+      loop: "{{ reserved_ips }}"
+      loop_control:
+        label: "{{ item.name }}-{{ item.subnet }}-{{ subnet_vlan_map[item.subnet] }}"
+
+    # ========================================================
+    # Summary
+    # ========================================================
+    - name: Cloud network setup complete
+      ansible.builtin.debug:
+        msg: |
+          VPC      : {{ vpc_name }} ({{ vpc_id }})
+          Prefix   : {{ vpc_prefix.name }} ({{ vpc_prefix.cidr }})
+          Subnets  :
+          {% for t in vm_types %}
+            {{ vm_prefix }}-{{ t.name }}-subnet  {{ t.subnet_cidr }}  vlan {{ t.vlan }}
+          {% endfor %}
+          Reserved IPs : {{ reserved_ips | length }} ({{ vm_types | length }} types × {{ vm_count }})
+          Next step    : ansible-playbook net-openshift.yml
