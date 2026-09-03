@@ -122,14 +122,29 @@ class IBMCloudSDKModule:
         """Return the VPC service URL for the given region.
 
         Checks (in order):
-          IBMCLOUD_VPC_URL  — full URL override (e.g. for test.cloud.ibm.com)
-          IC_VPC_URL        — alternate name for the same setting
-
-        Falls back to the standard production URL when neither variable is set.
+          1. IBMCLOUD_VPC_URL / IC_VPC_URL  — explicit full URL override
+          2. If IBMCLOUD_IAM_API_ENDPOINT / IC_IAM_TOKEN_URL contains a
+             non-production hostname (e.g. iam.test.cloud.ibm.com), replace
+             'cloud.ibm.com' with the same host suffix so both IAM and VPC
+             requests go to the same environment.
+          3. Production default: https://{region}.iaas.cloud.ibm.com/v1
         """
         override = os.environ.get('IBMCLOUD_VPC_URL') or os.environ.get('IC_VPC_URL')
         if override:
             return override.rstrip('/')
+
+        # Auto-derive from IAM endpoint when it points at a non-production host.
+        # e.g. https://iam.test.cloud.ibm.com → https://{region}.iaas.test.cloud.ibm.com/v1
+        iam_url = os.environ.get('IBMCLOUD_IAM_API_ENDPOINT') or os.environ.get('IC_IAM_TOKEN_URL')
+        if iam_url:
+            from urllib.parse import urlparse
+            iam_host = urlparse(iam_url).hostname or ''
+            # Strip the leading 'iam.' service label to get the base domain
+            # e.g. 'iam.test.cloud.ibm.com' → 'test.cloud.ibm.com'
+            base_domain = iam_host[len('iam.'):] if iam_host.startswith('iam.') else iam_host
+            if base_domain and base_domain != 'cloud.ibm.com':
+                return f'https://{region}.iaas.{base_domain}/v1'
+
         return f'https://{region}.iaas.cloud.ibm.com/v1'
 
     def handle_api_exception(self, e: ApiException, operation: str = "operation") -> None:
