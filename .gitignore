@@ -62,3 +62,5 @@ credentials.yml
 
 #BOB
 .bob
+
+*.tar.gz
