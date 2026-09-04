@@ -1,5 +1,14 @@
-ansible==14.3.1
-ansible-core==2.21.3
+# ansible-core Python version compatibility:
+#   Python 3.9  → ansible-core ≤ 2.16 (ast.Str removed in 3.12+, 2.17 dropped 3.9)
+#   Python 3.10-3.12 → ansible-core 2.17–2.21
+#   Python 3.13-3.14 → ansible-core 2.18+ (ast.Str fully removed)
+#
+# The 'ansible' meta-package pulls in ansible-core; pin it alongside.
+# pip resolves whichever marker matches the running interpreter.
+ansible==10.7.0 ; python_version < "3.10"
+ansible-core==2.16.14 ; python_version < "3.10"
+ansible==14.3.1 ; python_version >= "3.10"
+ansible-core==2.21.3 ; python_version >= "3.10"
 certifi==2026.7.22
 cffi==2.1.1
 charset-normalizer==3.5.1
