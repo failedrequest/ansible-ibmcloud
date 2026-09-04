@@ -10,7 +10,7 @@ A comprehensive, pure Python Ansible collection for managing IBM Cloud infrastru
 - ✅ **Idempotent Operations** — Safe to run multiple times
 - ✅ **Check Mode Support** — Dry-run capability for all modules
 - ✅ **module_defaults group support** — Set `ibmcloud_api_key` and `region` once for all tasks
-- ✅ **Python 3.10+ Compatible** (tested up to 3.14)
+- ✅ **Python 3.9–3.14 Compatible** (see requirements.txt for per-version ansible-core pins)
 - ✅ **Comprehensive Documentation** — Full examples and guides
 
 ## 🚀 Installation
@@ -30,12 +30,12 @@ pip install -r requirements.txt
 ### Step 2 — Install the collection
 
 ```bash
-ansible-galaxy collection install ibm-cloudcollection-2.0.9.tar.gz
+ansible-galaxy collection install ibm-cloudcollection-2.0.18.tar.gz
 ```
 
 > **Upgrading?** Add `--force` to overwrite a previous version:
 > ```bash
-> ansible-galaxy collection install --force ibm-cloudcollection-2.0.9.tar.gz
+> ansible-galaxy collection install --force ibm-cloudcollection-2.0.18.tar.gz
 > ```
 
 ### Step 3 — Set your IBM Cloud API key
@@ -48,7 +48,7 @@ export IC_API_KEY="your-api-key-here"
 
 ```bash
 ansible-galaxy collection list | grep ibm
-# ibm.cloudcollection   2.0.9
+# ibm.cloudcollection   2.0.18
 ```
 
 ---
@@ -247,10 +247,10 @@ ansible-playbook playbook.yml --ask-vault-pass
 
 | Requirement | Version |
 |-------------|---------|
-| Python | 3.10+ |
-| ansible-core | ≥ 2.14 |
-| ibm-vpc | ≥ 0.33.0 |
-| ibm-cloud-sdk-core | ≥ 3.20.0 |
+| Python | 3.9–3.14 |
+| ansible-core | 2.16.x (Python 3.9) · 2.21.x (Python 3.10+) |
+| ibm-vpc | ≥ 0.35.0 |
+| ibm-cloud-sdk-core | ≥ 3.26.0 |
 | ibm-platform-services | ≥ 0.75.0 |
 | ibm-cloud-networking-services | ≥ 0.34.0 |
 
@@ -276,6 +276,21 @@ ansible-playbook playbook.yml --ask-vault-pass
 ---
 
 ## 📈 Version History
+
+- **v2.0.18** — Staging / non-production environment support; Python 3.9–3.14 compatibility
+  - Fix: all 48 `ibm_is_*` modules now read `IBMCLOUD_IS_NG_API_ENDPOINT` for the VPC URL instead of hardcoding `iaas.cloud.ibm.com`
+  - Fix: `IAMAuthenticator` reads `IBMCLOUD_IAM_API_ENDPOINT` / `IC_IAM_TOKEN_URL` to override the IAM token endpoint
+  - Fix: `ibm_is_subnet_info` VPC ID detection — replaced `startswith('r0')` with a full `rNNN-<uuid>` regex so staging IDs (e.g. `r134-...`) are not mistaken for names
+  - Fix: `requirements.txt` uses `python_version` markers to install ansible-core 2.16 on Python 3.9 and 2.21 on Python 3.10+, resolving `ast.Str` removal incompatibility with Python 3.14
+  - Docs: new troubleshooting guide for `test.cloud.ibm.com`, env var reference in INSTALLATION.md and GETTING_STARTED.md
+
+- **v2.0.13** — Fix `ibm_is_routing_table`; rewrite test-vpc-routes playbook
+
+- **v2.0.12** — Fix `ibm_is_virtual_network_interface` delete: singular → plural SDK method name
+
+- **v2.0.11** — Fix `ibm_is_vpc_info`: remove `name=` param incompatible with ibm-vpc SDK 0.35; client-side filter with full pagination
+
+- **v2.0.10** — Fix `found` key missing from result; fix empty-subnet guard
 
 - **v2.0.9** — `meta/runtime.yml` + `module_defaults` group support; reserved IP list mode; VNI bare metal attach fixes
   - New: `meta/runtime.yml` declaring `action_groups.ibm` — resolves `could not resolve the module_defaults group ibm.cloudcollection.ibm`
